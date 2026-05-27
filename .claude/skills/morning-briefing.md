@@ -79,14 +79,25 @@ Read `/tmp/morning-briefing-data.json`. It contains:
 ```
 
 Analyze the emails and events yourself. Apply these rules:
-- Only include items that require a human action or decision
+
+**Actor check — do this first for every item:**
+- Read the email carefully to determine who needs to take action.
+- Josh's email is josh.dumaresq1@gmail.com. Only include an item as a Josh action if Josh is the one who needs to act.
+- If someone else is the actor (e.g. a lawyer sending a DocuSign to a third party, a family member handling something, a colleague managing a deal), mark it as a monitor/FYI item instead:
+  - Use the title format: `Monitor — <what's happening> (<who is handling it>)`
+  - Set source_type to "email" and due_hint to "whenever" unless there's a specific date Josh needs to check in by
+- Forwarded emails often mean Josh is being kept in the loop, not asked to act — treat these as monitors unless the forward explicitly asks Josh to do something.
+
+**Inclusion rules:**
+- Only include items where Josh needs to act OR monitor progress on something he cares about
 - Calendar events count as tasks only if they need prep, a reply, or represent a commitment
-- Emails that are purely FYI with no needed response should be omitted
+- Emails that are purely FYI with no needed response should be omitted entirely
 - Older unarchived emails imply they still need attention — include them
-- Priority rubric:
-  - **HIGH** = deadline today/tomorrow, waiting on you, meeting prep needed, financial/legal/urgent
+
+**Priority rubric:**
+  - **HIGH** = deadline today/tomorrow, waiting on Josh, meeting prep needed, financial/legal/urgent
   - **MEDIUM** = needs a response this week, meeting in next few days, follow-up needed
-  - **LOW** = can wait, informational but needs acknowledgement, low-stakes
+  - **LOW** = can wait, informational but needs acknowledgement, low-stakes, monitoring only
 
 ### 5. Write to MonoNote.md
 
@@ -101,7 +112,7 @@ Prepend a section in this exact format:
 
 #### High Priority
 
-- [ ] <concise imperative action>
+- [ ] <concise imperative action — Josh is the actor>
   - Source: Email — <subject> (<sender>)
   - Due: today
   - Priority:   [ ] High  [ ] Medium  [ ] Low
@@ -119,7 +130,13 @@ Prepend a section in this exact format:
 
 #### Low Priority
 
-...
+- [ ] Monitor — <what's happening> (<who is handling it>)
+  - Source: Email — <subject> (<sender>)
+  - Note: <one sentence on what to watch for or when to follow up>
+  - Due: whenever
+  - Priority:   [ ] High  [ ] Medium  [ ] Low
+  - Relevance:  [ ] Relevant  [ ] Skip
+  - Status:     [ ] Done  [ ] Bump  [ ] Cancelled
 
 ---
 
