@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pip install -q -r scripts/morning_briefing/requirements.txt 2>/dev/null && echo '[morning-briefing] deps ready'"
+            "command": "pip install -q --ignore-installed --break-system-packages cffi cryptography 2>/dev/null; pip install -q -r scripts/morning_briefing/requirements.txt 2>/dev/null && echo '[morning-briefing] deps ready'"
           }
         ]
       }
