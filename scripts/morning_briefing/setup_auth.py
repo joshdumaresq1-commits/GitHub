@@ -80,8 +80,20 @@ def main():
     print("Starting OAuth flow — a URL will appear below.")
     print("Open it in your browser, authorize access, then paste the code back here.\n")
 
-    flow = InstalledAppFlow.from_client_secrets_file(creds_file, SCOPES)
-    creds = flow.run_console()
+    flow = InstalledAppFlow.from_client_secrets_file(
+        creds_file,
+        SCOPES,
+        redirect_uri="urn:ietf:wg:oauth:2.0:oob",
+    )
+
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+    print("Open this URL in your browser:\n")
+    print(auth_url)
+    print()
+    code = input("Paste the authorization code here: ").strip()
+
+    flow.fetch_token(code=code)
+    creds = flow.credentials
 
     TOKEN_PATH.write_text(creds.to_json())
 
