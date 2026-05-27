@@ -21,67 +21,83 @@ Run:
 python3 -c "import google.auth, googleapiclient, anthropic" 2>&1
 ```
 
-If the import fails, install dependencies:
+If the import fails, install:
 ```bash
 pip install -r scripts/morning_briefing/requirements.txt
 ```
 
-### 2. Check Google Auth Token
+### 2. Check for Google Auth
 
-Check whether `~/.config/morning-briefing/token.json` exists:
+Check whether a token exists — either the env var or the token file:
 ```bash
-ls ~/.config/morning-briefing/token.json 2>/dev/null && echo "EXISTS" || echo "MISSING"
+python3 -c "
+import os, json
+from pathlib import Path
+token_env = os.environ.get('GOOGLE_TOKEN_JSON', '').strip()
+token_file = Path.home() / '.config' / 'morning-briefing' / 'token.json'
+if token_env:
+    print('ENV_VAR')
+elif token_file.exists():
+    print('FILE')
+else:
+    print('MISSING')
+"
 ```
 
-If the file is MISSING, tell the user:
+If the result is MISSING, tell the user:
 
-> Google authorization is not set up yet. Please run the one-time setup:
+> Google authorization is not set up yet. Run the one-time setup:
 >
 > ```bash
 > python3 scripts/morning_briefing/setup_auth.py
 > ```
 >
-> This will open your browser to authorize Gmail (read-only) and Calendar (read-only) access.
-> After authorizing, re-run `/morning-briefing`.
+> **Web/cloud users:** You also need to set two environment variables that survive
+> across sessions. In your Claude Code web environment settings, add:
+>
+> - `GOOGLE_CREDENTIALS_JSON` — the full contents of your credentials JSON file
+> - `GOOGLE_TOKEN_JSON` — printed at the end of the setup script above
+>
+> After setup, re-run `/morning-briefing`.
 
-Then stop — do not continue until the user re-invokes the skill after completing setup.
+Then stop until the user re-invokes the skill.
 
 ### 3. Run the Briefing Script
-
-Run the fetch script. Accept an optional `--mononote <path>` argument if the user
-specified a custom path to their MonoNote.md:
 
 ```bash
 python3 scripts/morning_briefing/fetch_and_brief.py
 ```
 
-If the user passed a path (e.g. `/morning-briefing ~/notes/MonoNote.md`), run:
+If the user passed a path (e.g. `/morning-briefing ~/notes/MonoNote.md`):
 ```bash
 python3 scripts/morning_briefing/fetch_and_brief.py --mononote <path>
 ```
 
-### 4. Report Results
-
-After the script finishes, read the first ~60 lines of MonoNote.md and show them
-to the user so they can see the briefing that was prepended:
-
+If the user passed `--dry-run`:
 ```bash
-head -60 MonoNote.md    # or the custom path if provided
+python3 scripts/morning_briefing/fetch_and_brief.py --dry-run
 ```
 
-Summarize what was added:
+### 4. Report Results
+
+After the script finishes, show the top ~60 lines of MonoNote.md:
+```bash
+head -60 MonoNote.md
+```
+
+Summarize:
 - How many tasks were generated
 - How many came from email vs. calendar
-- Which file was updated and where it lives
+- Which file was updated
 
 ### 5. Handle Errors
 
 | Error | Action |
 |-------|--------|
-| `credentials.json not found` | Direct user to run `setup_auth.py` and follow the Cloud Console steps printed by the script |
-| `Token expired` | The script auto-refreshes; if refresh fails, delete `~/.config/morning-briefing/token.json` and re-run `setup_auth.py` |
-| `MonoNote.md` not found anywhere | The script creates it in the current working directory; tell the user where it was created |
-| JSON parse error from Claude | Retry the script once with `--dry-run` to see raw output, then report |
+| `No Google credentials found` | Tell user to set `GOOGLE_CREDENTIALS_JSON` env var or run `setup_auth.py` |
+| `Token expired` / refresh fails | Delete `~/.config/morning-briefing/token.json`, clear `GOOGLE_TOKEN_JSON` env var, re-run `setup_auth.py` |
+| `MonoNote.md` not found | Script creates it in cwd; tell user where |
+| JSON parse error | Re-run with `--dry-run` to inspect raw Claude output, then report |
 
 ---
 
@@ -121,8 +137,6 @@ Summarize what was added:
 
 ## Optional Arguments
 
-The user may invoke with:
-
 - `/morning-briefing` — auto-detects MonoNote.md
 - `/morning-briefing ~/path/to/MonoNote.md` — uses specified path
-- `/morning-briefing --dry-run` — prints briefing to chat without writing to file
+- `/morning-briefing --dry-run` — prints briefing to chat, does not write to file

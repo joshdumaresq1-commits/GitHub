@@ -40,24 +40,64 @@ MONONOTE_SEARCH_PATHS = [
 # Google auth
 # ---------------------------------------------------------------------------
 
-def get_google_creds():
-    creds = None
+def _load_creds_from_env_or_file() -> Credentials | None:
+    """
+    Prefer GOOGLE_TOKEN_JSON env var (web/cloud sessions) over the token file.
+    Both paths produce a Credentials object or None.
+    """
+    token_env = os.environ.get("GOOGLE_TOKEN_JSON", "").strip()
+    if token_env:
+        return Credentials.from_authorized_user_info(json.loads(token_env), SCOPES)
     if TOKEN_PATH.exists():
-        creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            if not CREDS_PATH.exists():
-                sys.exit(
-                    f"\nERROR: credentials.json not found at {CREDS_PATH}\n"
-                    "Run setup first:\n"
-                    "  python3 scripts/morning_briefing/setup_auth.py\n"
-                )
-            flow = InstalledAppFlow.from_client_secrets_file(str(CREDS_PATH), SCOPES)
-            creds = flow.run_local_server(port=0)
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        TOKEN_PATH.write_text(creds.to_json())
+        return Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+    return None
+
+
+def _save_creds(creds: Credentials) -> None:
+    """Persist refreshed credentials for the rest of this session."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    TOKEN_PATH.write_text(creds.to_json())
+
+
+def get_google_creds() -> Credentials:
+    creds = _load_creds_from_env_or_file()
+
+    if creds and creds.valid:
+        return creds
+
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        _save_creds(creds)
+        return creds
+
+    # No usable token — need a fresh OAuth flow.
+    # Credentials JSON can come from env var (web) or file (local).
+    creds_env = os.environ.get("GOOGLE_CREDENTIALS_JSON", "").strip()
+    if creds_env:
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        tmp.write(creds_env)
+        tmp.close()
+        creds_file = tmp.name
+    elif CREDS_PATH.exists():
+        creds_file = str(CREDS_PATH)
+    else:
+        sys.exit(
+            "\nERROR: No Google credentials found.\n"
+            "Set the GOOGLE_CREDENTIALS_JSON environment variable, or run:\n"
+            "  python3 scripts/morning_briefing/setup_auth.py\n"
+        )
+
+    flow = InstalledAppFlow.from_client_secrets_file(creds_file, SCOPES)
+    # run_console() works in both local terminals and cloud/web environments —
+    # it prints a URL you open in your own browser, then paste the code back.
+    creds = flow.run_console()
+    _save_creds(creds)
+    print(
+        "\nAuthorization complete.\n"
+        "To persist across sessions, save this value as the GOOGLE_TOKEN_JSON env var:\n\n"
+        f"{creds.to_json()}\n"
+    )
     return creds
 
 

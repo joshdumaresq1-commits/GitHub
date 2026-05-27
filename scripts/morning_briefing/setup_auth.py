@@ -2,19 +2,30 @@
 """
 One-time Google OAuth setup for the morning briefing skill.
 
-Steps:
+Works in both local terminals and web/cloud environments (Claude Code on the web).
+
+HOW TO GET credentials.json:
   1. Go to https://console.cloud.google.com/
   2. Create a project (or pick an existing one).
   3. Enable Gmail API and Google Calendar API.
-  4. Create OAuth 2.0 credentials (Desktop App type).
-  5. Download the JSON file and save it to ~/.config/morning-briefing/credentials.json
-  6. Run this script: python3 scripts/morning_briefing/setup_auth.py
+  4. APIs & Services > Credentials > Create Credentials > OAuth 2.0 Client ID
+     Application type: Desktop App
+  5. Download the JSON file.
 
-The script will open your browser, ask you to authorize access,
-then save a token to ~/.config/morning-briefing/token.json for future runs.
+Then either:
+  A) Save it to ~/.config/morning-briefing/credentials.json  (local/file approach)
+  B) Set its contents as the GOOGLE_CREDENTIALS_JSON env var  (web/cloud approach)
+
+Run this script once. It will:
+  - Print a URL — open it in your browser and authorize access.
+  - Ask you to paste back the authorization code.
+  - Save the token and print its JSON so you can set GOOGLE_TOKEN_JSON.
 """
 
+import os
 import sys
+import json
+import tempfile
 from pathlib import Path
 
 CONFIG_DIR = Path.home() / ".config" / "morning-briefing"
@@ -36,31 +47,56 @@ def main():
             "  pip install -r scripts/morning_briefing/requirements.txt\n"
         )
 
-    if not CREDS_PATH.exists():
-        print(f"credentials.json not found at {CREDS_PATH}\n")
-        print("To get it:")
-        print("  1. Visit https://console.cloud.google.com/")
-        print("  2. Create/select a project.")
-        print("  3. Enable Gmail API and Google Calendar API.")
-        print("  4. APIs & Services > Credentials > Create OAuth 2.0 Client ID")
-        print("     Application type: Desktop App")
-        print("  5. Download the JSON and save to:")
-        print(f"     {CREDS_PATH}")
-        print("\nThen re-run this script.")
+    # Resolve credentials source: env var (web) or file (local)
+    creds_env = os.environ.get("GOOGLE_CREDENTIALS_JSON", "").strip()
+    if creds_env:
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        tmp.write(creds_env)
+        tmp.close()
+        creds_file = tmp.name
+        print("Using credentials from GOOGLE_CREDENTIALS_JSON env var.")
+    elif CREDS_PATH.exists():
+        creds_file = str(CREDS_PATH)
+        print(f"Using credentials from {CREDS_PATH}")
+    else:
+        print(f"No credentials found.\n")
+        print("Option A — File (local use):")
+        print(f"  Save your credentials JSON to: {CREDS_PATH}")
+        print()
+        print("Option B — Environment variable (web/cloud use):")
+        print("  Set GOOGLE_CREDENTIALS_JSON to the full contents of the downloaded JSON.")
+        print("  In Claude Code on the web: Environment settings > Add variable.")
+        print()
+        print("To get credentials.json:")
+        print("  1. https://console.cloud.google.com/")
+        print("  2. Enable Gmail API + Google Calendar API")
+        print("  3. APIs & Services > Credentials > OAuth 2.0 Client ID (Desktop App)")
+        print("  4. Download JSON")
         sys.exit(1)
 
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-    print("Opening browser for Google authorization...")
-    flow = InstalledAppFlow.from_client_secrets_file(str(CREDS_PATH), SCOPES)
-    creds = flow.run_local_server(port=0)
+    print()
+    print("Starting OAuth flow — a URL will appear below.")
+    print("Open it in your browser, authorize access, then paste the code back here.\n")
+
+    flow = InstalledAppFlow.from_client_secrets_file(creds_file, SCOPES)
+    creds = flow.run_console()
 
     TOKEN_PATH.write_text(creds.to_json())
-    print(f"\nAuthorization complete. Token saved to {TOKEN_PATH}")
-    print("You can now run the morning briefing:\n")
-    print("  python3 scripts/morning_briefing/fetch_and_brief.py")
-    print("  # or via Claude Code:")
-    print("  /morning-briefing")
+
+    print(f"\nToken saved to {TOKEN_PATH}")
+    print()
+    print("=" * 70)
+    print("IMPORTANT — Web/cloud users: copy everything between the lines below")
+    print("and save it as the GOOGLE_TOKEN_JSON environment variable in your")
+    print("Claude Code web environment settings. This lets the token survive")
+    print("across sessions (since the container resets each time).")
+    print("=" * 70)
+    print(creds.to_json())
+    print("=" * 70)
+    print()
+    print("Setup complete. You can now run /morning-briefing")
 
 
 if __name__ == "__main__":

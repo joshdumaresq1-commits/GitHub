@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pip install -q -r scripts/morning_briefing/requirements.txt 2>/dev/null && echo '[morning-briefing] deps ready'"
+          }
+        ]
+      }
+    ]
+  }
+}
