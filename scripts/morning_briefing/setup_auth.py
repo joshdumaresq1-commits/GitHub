@@ -38,65 +38,43 @@ SCOPES = [
 ]
 
 
-def main():
-    try:
-        from google_auth_oauthlib.flow import InstalledAppFlow
-    except ImportError:
-        sys.exit(
-            "Missing dependencies. Install them first:\n"
-            "  pip install -r scripts/morning_briefing/requirements.txt\n"
-        )
-
-    # Resolve credentials source: env var (web) or file (local)
-    creds_env = os.environ.get("GOOGLE_CREDENTIALS_JSON", "").strip()
-    if creds_env:
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
-        tmp.write(creds_env)
-        tmp.close()
-        creds_file = tmp.name
-        print("Using credentials from GOOGLE_CREDENTIALS_JSON env var.")
-    elif CREDS_PATH.exists():
-        creds_file = str(CREDS_PATH)
-        print(f"Using credentials from {CREDS_PATH}")
-    else:
-        print(f"No credentials found.\n")
-        print("Option A — File (local use):")
-        print(f"  Save your credentials JSON to: {CREDS_PATH}")
-        print()
-        print("Option B — Environment variable (web/cloud use):")
-        print("  Set GOOGLE_CREDENTIALS_JSON to the full contents of the downloaded JSON.")
-        print("  In Claude Code on the web: Environment settings > Add variable.")
-        print()
-        print("To get credentials.json:")
-        print("  1. https://console.cloud.google.com/")
-        print("  2. Enable Gmail API + Google Calendar API")
-        print("  3. APIs & Services > Credentials > OAuth 2.0 Client ID (Desktop App)")
-        print("  4. Download JSON")
-        sys.exit(1)
-
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-
-    print()
-    print("Starting OAuth flow — a URL will appear below.")
-    print("Open it in your browser, authorize access, then paste the code back here.\n")
-
-    flow = InstalledAppFlow.from_client_secrets_file(
+def build_flow(creds_file):
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    return InstalledAppFlow.from_client_secrets_file(
         creds_file,
         SCOPES,
         redirect_uri="urn:ietf:wg:oauth:2.0:oob",
     )
 
-    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
-    print("Open this URL in your browser:\n")
-    print(auth_url)
+
+def resolve_creds_file():
+    creds_env = os.environ.get("GOOGLE_CREDENTIALS_JSON", "").strip()
+    if creds_env:
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        tmp.write(creds_env)
+        tmp.close()
+        print("Using credentials from GOOGLE_CREDENTIALS_JSON env var.")
+        return tmp.name
+    if CREDS_PATH.exists():
+        print(f"Using credentials from {CREDS_PATH}")
+        return str(CREDS_PATH)
+    print("No credentials found.\n")
+    print("Option A — File (local use):")
+    print(f"  Save your credentials JSON to: {CREDS_PATH}")
     print()
-    code = input("Paste the authorization code here: ").strip()
+    print("Option B — Environment variable (web/cloud use):")
+    print("  Set GOOGLE_CREDENTIALS_JSON to the full contents of the downloaded JSON.")
+    print("  In Claude Code on the web: Environment settings > Add variable.")
+    print()
+    print("To get credentials.json:")
+    print("  1. https://console.cloud.google.com/")
+    print("  2. Enable Gmail API + Google Calendar API")
+    print("  3. APIs & Services > Credentials > OAuth 2.0 Client ID (Desktop App)")
+    print("  4. Download JSON")
+    sys.exit(1)
 
-    flow.fetch_token(code=code)
-    creds = flow.credentials
 
-    TOKEN_PATH.write_text(creds.to_json())
-
+def print_token(creds):
     print(f"\nToken saved to {TOKEN_PATH}")
     print()
     print("=" * 70)
@@ -109,6 +87,40 @@ def main():
     print("=" * 70)
     print()
     print("Setup complete. You can now run /morning-briefing")
+
+
+def main():
+    try:
+        from google_auth_oauthlib.flow import InstalledAppFlow  # noqa: F401
+    except ImportError:
+        sys.exit(
+            "Missing dependencies. Install them first:\n"
+            "  pip install -r scripts/morning_briefing/requirements.txt\n"
+        )
+
+    # When called with a code argument, exchange it for a token.
+    if len(sys.argv) == 3 and sys.argv[1] == "--exchange":
+        code = sys.argv[2]
+        creds_file = resolve_creds_file()
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        flow = build_flow(creds_file)
+        flow.fetch_token(code=code)
+        creds = flow.credentials
+        TOKEN_PATH.write_text(creds.to_json())
+        print_token(creds)
+        return
+
+    # Default: print the authorization URL.
+    creds_file = resolve_creds_file()
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    flow = build_flow(creds_file)
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+    print()
+    print("Open this URL in your browser:\n")
+    print(auth_url)
+    print()
+    print("After authorizing, paste the code back and run:")
+    print("  python setup_auth.py --exchange <code>")
 
 
 if __name__ == "__main__":
