@@ -110,7 +110,7 @@ def main():
         flow = build_flow(creds_file)
         # Re-supply the PKCE verifier saved during URL generation.
         if VERIFIER_PATH.exists():
-            flow.oauth2session._client.code_verifier = VERIFIER_PATH.read_text().strip()
+            flow.code_verifier = VERIFIER_PATH.read_text().strip()
         flow.fetch_token(code=code)
         creds = flow.credentials
         TOKEN_PATH.write_text(creds.to_json())
@@ -124,8 +124,8 @@ def main():
     flow = build_flow(creds_file)
     auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
     # Persist the PKCE verifier so --exchange can reuse it.
-    if hasattr(flow.oauth2session, "_client") and hasattr(flow.oauth2session._client, "code_verifier"):
-        VERIFIER_PATH.write_text(flow.oauth2session._client.code_verifier or "")
+    if flow.code_verifier:
+        VERIFIER_PATH.write_text(flow.code_verifier)
     print()
     print("Open this URL in your browser:\n")
     print(auth_url)
