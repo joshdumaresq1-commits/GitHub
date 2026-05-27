@@ -39,6 +39,7 @@ SCOPES = [
 
 
 REDIRECT_URI = "http://localhost"
+VERIFIER_PATH = Path(tempfile.gettempdir()) / "morning-briefing-pkce-verifier"
 
 
 def build_flow(creds_file):
@@ -107,9 +108,13 @@ def main():
         creds_file = resolve_creds_file()
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         flow = build_flow(creds_file)
+        # Re-supply the PKCE verifier saved during URL generation.
+        if VERIFIER_PATH.exists():
+            flow.oauth2session._client.code_verifier = VERIFIER_PATH.read_text().strip()
         flow.fetch_token(code=code)
         creds = flow.credentials
         TOKEN_PATH.write_text(creds.to_json())
+        VERIFIER_PATH.unlink(missing_ok=True)
         print_token(creds)
         return
 
@@ -118,6 +123,9 @@ def main():
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     flow = build_flow(creds_file)
     auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+    # Persist the PKCE verifier so --exchange can reuse it.
+    if hasattr(flow.oauth2session, "_client") and hasattr(flow.oauth2session._client, "code_verifier"):
+        VERIFIER_PATH.write_text(flow.oauth2session._client.code_verifier or "")
     print()
     print("Open this URL in your browser:\n")
     print(auth_url)
