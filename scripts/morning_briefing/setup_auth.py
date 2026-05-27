@@ -38,12 +38,15 @@ SCOPES = [
 ]
 
 
+REDIRECT_URI = "http://localhost"
+
+
 def build_flow(creds_file):
     from google_auth_oauthlib.flow import InstalledAppFlow
     return InstalledAppFlow.from_client_secrets_file(
         creds_file,
         SCOPES,
-        redirect_uri="urn:ietf:wg:oauth:2.0:oob",
+        redirect_uri=REDIRECT_URI,
     )
 
 
@@ -119,8 +122,9 @@ def main():
     print("Open this URL in your browser:\n")
     print(auth_url)
     print()
-    print("After authorizing, paste the code back and run:")
-    print("  python setup_auth.py --exchange <code>")
+    print("After authorizing, your browser will redirect to http://localhost/...")
+    print("That page won't load — that's expected.")
+    print("Copy the 'code' value from the URL bar and paste it back here.")
 
 
 if __name__ == "__main__":
