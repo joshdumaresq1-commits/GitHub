@@ -13,11 +13,24 @@ import argparse
 import re
 from pathlib import Path
 
+import certifi
 import anthropic
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+
+# In Anthropic's cloud sandbox the egress proxy uses a custom CA that isn't
+# in certifi's bundle. Append the system CA bundle (which includes it) so
+# httplib2 can verify Google API connections.
+_SYSTEM_CA = "/etc/ssl/certs/ca-certificates.crt"
+if os.path.exists(_SYSTEM_CA):
+    _certifi_bundle = certifi.where()
+    _system_certs = open(_SYSTEM_CA).read()
+    _existing = open(_certifi_bundle).read()
+    if "sandbox-egress-production" not in _existing:
+        with open(_certifi_bundle, "a") as _f:
+            _f.write("\n" + _system_certs)
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
