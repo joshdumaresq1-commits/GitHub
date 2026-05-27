@@ -3,7 +3,7 @@
 # Morning Briefing Skill
 
 Fetches today's Gmail primary inbox and Google Calendar, prioritizes all action items
-from high to low using Claude, and prepends the result to MonoNote.md under today's date.
+from high to low, and prepends the result to MonoNote.md under today's date.
 
 Each task gets feedback checkboxes (Priority, Relevance) and status checkboxes
 (Done, Bump, Cancelled).
@@ -18,7 +18,7 @@ When this skill is invoked, do the following in order:
 
 Run:
 ```bash
-python3 -c "import google.auth, googleapiclient, anthropic" 2>&1
+python3 -c "import google.auth, googleapiclient" 2>&1
 ```
 
 If the import fails, install:
@@ -28,7 +28,6 @@ pip install -r scripts/morning_briefing/requirements.txt
 
 ### 2. Check for Google Auth
 
-Check whether a token exists — either the env var or the token file:
 ```bash
 python3 -c "
 import os, json
@@ -62,56 +61,48 @@ If the result is MISSING, tell the user:
 
 Then stop until the user re-invokes the skill.
 
-### 3. Run the Briefing Script
+### 3. Fetch Data
+
+Run the fetch script in JSON mode (status messages go to stderr, JSON to stdout):
 
 ```bash
-python3 scripts/morning_briefing/fetch_and_brief.py
+python3 scripts/morning_briefing/fetch_and_brief.py --json 2>&1 >/tmp/morning-briefing-data.json; cat /tmp/morning-briefing-data.json
 ```
 
-If the user passed a path (e.g. `/morning-briefing ~/notes/MonoNote.md`):
-```bash
-python3 scripts/morning_briefing/fetch_and_brief.py --mononote <path>
+If the script exits non-zero, report the error and stop.
+
+### 4. Prioritize
+
+Read `/tmp/morning-briefing-data.json`. It contains:
+```json
+{"today": "YYYY-MM-DD", "emails": [...], "events": [...]}
 ```
 
-If the user passed `--dry-run`:
-```bash
-python3 scripts/morning_briefing/fetch_and_brief.py --dry-run
-```
+Analyze the emails and events yourself. Apply these rules:
+- Only include items that require a human action or decision
+- Calendar events count as tasks only if they need prep, a reply, or represent a commitment
+- Emails that are purely FYI with no needed response should be omitted
+- Older unarchived emails imply they still need attention — include them
+- Priority rubric:
+  - **HIGH** = deadline today/tomorrow, waiting on you, meeting prep needed, financial/legal/urgent
+  - **MEDIUM** = needs a response this week, meeting in next few days, follow-up needed
+  - **LOW** = can wait, informational but needs acknowledgement, low-stakes
 
-### 4. Report Results
+### 5. Write to MonoNote.md
 
-After the script finishes, show the top ~60 lines of MonoNote.md:
-```bash
-head -60 MonoNote.md
-```
+Find the MonoNote.md file (check `./MonoNote.md` first, then `~/MonoNote.md`).
 
-Summarize:
-- How many tasks were generated
-- How many came from email vs. calendar
-- Which file was updated
-
-### 5. Handle Errors
-
-| Error | Action |
-|-------|--------|
-| `No Google credentials found` | Tell user to set `GOOGLE_CREDENTIALS_JSON` env var or run `setup_auth.py` |
-| `Token expired` / refresh fails | Delete `~/.config/morning-briefing/token.json`, clear `GOOGLE_TOKEN_JSON` env var, re-run `setup_auth.py` |
-| `MonoNote.md` not found | Script creates it in cwd; tell user where |
-| JSON parse error | Re-run with `--dry-run` to inspect raw Claude output, then report |
-
----
-
-## Output Format in MonoNote.md
+Prepend a section in this exact format:
 
 ```markdown
-## 2026-05-27
+## YYYY-MM-DD
 
 ### Morning Briefing
 
 #### High Priority
 
-- [ ] Reply to Sarah — Q2 budget approval needed by EOD
-  - Source: Email — "Q2 Budget Review" (sarah@company.com)
+- [ ] <concise imperative action>
+  - Source: Email — <subject> (<sender>)
   - Due: today
   - Priority:   [ ] High  [ ] Medium  [ ] Low
   - Relevance:  [ ] Relevant  [ ] Skip
@@ -119,8 +110,8 @@ Summarize:
 
 #### Medium Priority
 
-- [ ] Prepare slides for Thursday design review
-  - Source: Calendar — Design Review (Thu 10am)
+- [ ] <concise imperative action>
+  - Source: Calendar — <event name>
   - Due: this week
   - Priority:   [ ] High  [ ] Medium  [ ] Low
   - Relevance:  [ ] Relevant  [ ] Skip
@@ -131,12 +122,36 @@ Summarize:
 ...
 
 ---
+
 ```
+
+Only include sections that have tasks. Use the Edit or Write tool to prepend this block
+to MonoNote.md (insert after line 1, which is the `# MonoNote` header and the comment line).
+
+### 6. Report Results
+
+Show the top 80 lines of MonoNote.md:
+```bash
+head -80 MonoNote.md
+```
+
+Summarize:
+- How many tasks were generated
+- How many came from email vs. calendar
+- Which file was updated
+
+### 7. Handle Errors
+
+| Error | Action |
+|-------|--------|
+| `No Google credentials found` | Tell user to set `GOOGLE_CREDENTIALS_JSON` env var or run `setup_auth.py` |
+| `Token expired` / refresh fails | Delete `~/.config/morning-briefing/token.json`, clear `GOOGLE_TOKEN_JSON` env var, re-run `setup_auth.py` |
+| `MonoNote.md` not found | Create it in cwd; tell user where |
+| SSL error | Already patched in the script; if it recurs, re-run the script once to repatch certifi |
 
 ---
 
 ## Optional Arguments
 
 - `/morning-briefing` — auto-detects MonoNote.md
-- `/morning-briefing ~/path/to/MonoNote.md` — uses specified path
 - `/morning-briefing --dry-run` — prints briefing to chat, does not write to file

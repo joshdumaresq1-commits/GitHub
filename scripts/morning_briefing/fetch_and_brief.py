@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Fetches Gmail inbox + Google Calendar, prioritizes tasks via Claude,
-and prepends a structured briefing to MonoNote.md.
+Fetches Gmail inbox + Google Calendar and either:
+  --json      dumps raw data as JSON (for Claude Code to prioritize), or
+  (default)   prioritizes via the Anthropic API and writes to MonoNote.md
 """
 
 import os
@@ -14,7 +15,6 @@ import re
 from pathlib import Path
 
 import certifi
-import anthropic
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -54,10 +54,6 @@ MONONOTE_SEARCH_PATHS = [
 # ---------------------------------------------------------------------------
 
 def _load_creds_from_env_or_file() -> Credentials | None:
-    """
-    Prefer GOOGLE_TOKEN_JSON env var (web/cloud sessions) over the token file.
-    Both paths produce a Credentials object or None.
-    """
     token_env = os.environ.get("GOOGLE_TOKEN_JSON", "").strip()
     if token_env:
         return Credentials.from_authorized_user_info(json.loads(token_env), SCOPES)
@@ -67,7 +63,6 @@ def _load_creds_from_env_or_file() -> Credentials | None:
 
 
 def _save_creds(creds: Credentials) -> None:
-    """Persist refreshed credentials for the rest of this session."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     TOKEN_PATH.write_text(creds.to_json())
 
@@ -83,8 +78,6 @@ def get_google_creds() -> Credentials:
         _save_creds(creds)
         return creds
 
-    # No usable token — need a fresh OAuth flow.
-    # Credentials JSON can come from env var (web) or file (local).
     creds_env = os.environ.get("GOOGLE_CREDENTIALS_JSON", "").strip()
     if creds_env:
         import tempfile
@@ -102,8 +95,6 @@ def get_google_creds() -> Credentials:
         )
 
     flow = InstalledAppFlow.from_client_secrets_file(creds_file, SCOPES)
-    # run_console() works in both local terminals and cloud/web environments —
-    # it prints a URL you open in your own browser, then paste the code back.
     creds = flow.run_console()
     _save_creds(creds)
     print(
@@ -123,11 +114,6 @@ def decode_snippet(snippet: str) -> str:
 
 
 def fetch_gmail_inbox(service, max_results: int = 60) -> list[dict]:
-    """
-    Returns all emails sitting in the unsorted primary inbox.
-    Excludes Promotions / Social / Updates / Forums categories.
-    Includes unread AND read emails that are still in INBOX (action-pending).
-    """
     result = service.users().messages().list(
         userId="me",
         labelIds=["INBOX"],
@@ -162,7 +148,6 @@ def fetch_gmail_inbox(service, max_results: int = 60) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def fetch_calendar_events(service) -> list[dict]:
-    """Returns today's calendar events (local midnight → +24 h)."""
     local_now = datetime.datetime.now(datetime.timezone.utc)
     start_of_day = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = start_of_day + datetime.timedelta(days=1)
@@ -191,14 +176,11 @@ def fetch_calendar_events(service) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Claude prioritization
+# Claude API prioritization (only used when ANTHROPIC_API_KEY is set)
 # ---------------------------------------------------------------------------
 
-def prioritize_with_claude(emails: list[dict], events: list[dict], today: str) -> list[dict]:
-    """
-    Calls Claude to extract action items and rank them HIGH / MEDIUM / LOW.
-    Returns a list of task dicts sorted high → low.
-    """
+def prioritize_with_claude_api(emails: list[dict], events: list[dict], today: str) -> list[dict]:
+    import anthropic
     client = anthropic.Anthropic()
 
     system = (
@@ -244,7 +226,6 @@ Return a JSON array, sorted HIGH first, then MEDIUM, then LOW:
     )
 
     raw = response.content[0].text.strip()
-    # Strip accidental markdown code fences
     raw = re.sub(r"^```[a-z]*\n?", "", raw)
     raw = re.sub(r"\n?```$", "", raw)
     return json.loads(raw)
@@ -295,7 +276,6 @@ def find_or_create_mononote(explicit_path: str | None) -> Path:
     for p in MONONOTE_SEARCH_PATHS:
         if p.exists():
             return p
-    # Default: create next to cwd
     return Path.cwd() / "MonoNote.md"
 
 
@@ -318,31 +298,40 @@ def main():
         "--dry-run", action="store_true",
         help="Print the briefing to stdout instead of writing to MonoNote.md",
     )
+    parser.add_argument(
+        "--json", action="store_true",
+        help="Dump raw emails+events as JSON and exit (Claude Code handles prioritization)",
+    )
     args = parser.parse_args()
 
     today = datetime.date.today().isoformat()
 
-    print("Authenticating with Google...", flush=True)
+    print("Authenticating with Google...", file=sys.stderr, flush=True)
     creds = get_google_creds()
 
     gmail_svc = build("gmail", "v1", credentials=creds)
     cal_svc = build("calendar", "v3", credentials=creds)
 
-    print("Fetching Gmail inbox...", flush=True)
+    print("Fetching Gmail inbox...", file=sys.stderr, flush=True)
     emails = fetch_gmail_inbox(gmail_svc)
-    print(f"  {len(emails)} email(s) in primary inbox", flush=True)
+    print(f"  {len(emails)} email(s) in primary inbox", file=sys.stderr, flush=True)
 
-    print("Fetching today's calendar events...", flush=True)
+    print("Fetching today's calendar events...", file=sys.stderr, flush=True)
     events = fetch_calendar_events(cal_svc)
-    print(f"  {len(events)} event(s) today", flush=True)
+    print(f"  {len(events)} event(s) today", file=sys.stderr, flush=True)
+
+    # --json mode: dump data and exit; Claude Code skill handles the rest
+    if args.json:
+        print(json.dumps({"today": today, "emails": emails, "events": events}, ensure_ascii=False))
+        return 0
 
     if not emails and not events:
         print("Nothing to prioritize — inbox empty and no events today.")
         return 0
 
-    print("Prioritizing with Claude...", flush=True)
-    tasks = prioritize_with_claude(emails, events, today)
-    print(f"  {len(tasks)} action item(s) identified", flush=True)
+    print("Prioritizing with Claude API...", file=sys.stderr, flush=True)
+    tasks = prioritize_with_claude_api(emails, events, today)
+    print(f"  {len(tasks)} action item(s) identified", file=sys.stderr, flush=True)
 
     briefing = format_briefing(tasks, today)
 
