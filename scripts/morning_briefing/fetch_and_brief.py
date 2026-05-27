@@ -109,7 +109,7 @@ def decode_snippet(snippet: str) -> str:
     return snippet.replace("&#39;", "'").replace("&quot;", '"').replace("&amp;", "&")
 
 
-def fetch_gmail_inbox(service, max_results: int = 60) -> list[dict]:
+def fetch_gmail_inbox(service, max_results: int = 100) -> list[dict]:
     """
     Returns all emails sitting in the unsorted primary inbox.
     Excludes Promotions / Social / Updates / Forums categories.
@@ -150,8 +150,8 @@ def fetch_gmail_inbox(service, max_results: int = 60) -> list[dict]:
 
 def fetch_calendar_events(service) -> list[dict]:
     """Returns today's calendar events (local midnight → +24 h)."""
-    local_now = datetime.datetime.now(datetime.timezone.utc)
-    start_of_day = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    local_tz = datetime.datetime.now().astimezone().tzinfo
+    start_of_day = datetime.datetime.combine(datetime.date.today(), datetime.time.min, tzinfo=local_tz)
     end_of_day = start_of_day + datetime.timedelta(days=1)
 
     result = service.events().list(
