@@ -13,11 +13,13 @@ import argparse
 import re
 from pathlib import Path
 
+import httplib2
 import anthropic
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+import google_auth_httplib2
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
@@ -181,12 +183,36 @@ def fetch_calendar_events(service) -> list[dict]:
 # Claude prioritization
 # ---------------------------------------------------------------------------
 
+def _get_anthropic_client() -> anthropic.Anthropic:
+    """
+    Returns an Anthropic client. In Claude Code web environments the API key
+    lives in a session token file rather than ANTHROPIC_API_KEY, so we fall
+    back to reading it from CLAUDE_SESSION_INGRESS_TOKEN_FILE when needed.
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        token_file = os.environ.get("CLAUDE_SESSION_INGRESS_TOKEN_FILE", "")
+        if token_file and Path(token_file).exists():
+            api_key = Path(token_file).read_text().strip()
+    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    kwargs: dict = {}
+    if api_key:
+        # Session ingress tokens (sk-ant-si-…) use Bearer auth; regular keys use x-api-key.
+        if api_key.startswith("sk-ant-si"):
+            kwargs["auth_token"] = api_key
+        else:
+            kwargs["api_key"] = api_key
+    if base_url:
+        kwargs["base_url"] = base_url
+    return anthropic.Anthropic(**kwargs)
+
+
 def prioritize_with_claude(emails: list[dict], events: list[dict], today: str) -> list[dict]:
     """
     Calls Claude to extract action items and rank them HIGH / MEDIUM / LOW.
     Returns a list of task dicts sorted high → low.
     """
-    client = anthropic.Anthropic()
+    client = _get_anthropic_client()
 
     system = (
         "You are a personal productivity assistant. "
@@ -312,8 +338,15 @@ def main():
     print("Authenticating with Google...", flush=True)
     creds = get_google_creds()
 
-    gmail_svc = build("gmail", "v1", credentials=creds)
-    cal_svc = build("calendar", "v3", credentials=creds)
+    # Build an AuthorizedHttp backed by the system CA bundle so the
+    # environment's proxy cert chain is trusted (credentials vs http are mutually
+    # exclusive in build(), so we pass only http here).
+    def _authorized_http(creds):
+        h = httplib2.Http(ca_certs="/etc/ssl/certs/ca-certificates.crt")
+        return google_auth_httplib2.AuthorizedHttp(creds, http=h)
+
+    gmail_svc = build("gmail", "v1", http=_authorized_http(creds))
+    cal_svc = build("calendar", "v3", http=_authorized_http(creds))
 
     print("Fetching Gmail inbox...", flush=True)
     emails = fetch_gmail_inbox(gmail_svc)
