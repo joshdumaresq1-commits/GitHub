@@ -53,7 +53,7 @@ class RBCParser(BaseParser):
             r"Here\s|Stay\s|Please\s|TM\s|®|https?://|From|Your\s|RBC\s*Private|"
             r"Royal\s*Bank|P\.O\.|Calgary|How\s*to|www\.|GST\s*Reg|Trademark|Registered|"
             r"Total\w*deposits|Total\w*withdrawals|account\s+statement|"
-            r"\d+of\d+|\*\d+\*)",
+            r"\d+of\d+|\*[A-Z0-9]+\*)",
             re.IGNORECASE,
         )
         junk_re = re.compile(r"^[\d\-\*\s\(\)]+$|^[A-Z0-9_\-]{20,}$", re.IGNORECASE)
@@ -76,12 +76,13 @@ class RBCParser(BaseParser):
             if not line or skip_re.match(line) or junk_re.match(line):
                 continue
 
-            # Strip date prefix if present
+            # Strip date prefix if present — reset desc_parts on new date
             dm = date_re.match(line)
             if dm:
                 month_num = self._month_num(dm.group(2))
                 year = end_year if month_num < start_month else start_year
                 current_date = self._normalize_date(f"{dm.group(1)} {dm.group(2)} {year}")
+                desc_parts = []  # discard any accumulated header garbage on date change
                 line = line[dm.end():].strip()
 
             if not line:
