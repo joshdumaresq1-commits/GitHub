@@ -18,9 +18,85 @@ class ScotiabankParser(BaseParser):
         pages = self.get_pages(pdf_path)
         full_text = "\n".join(pages)
 
+        if re.search(r"Page created on|Current balance.*Available balance", full_text, re.IGNORECASE):
+            return self._parse_online_export(pages, full_text)
         if re.search(r"credit limit|minimum payment|payment due date", full_text, re.IGNORECASE):
             return self._parse_credit(pages, full_text)
         return self._parse_chequing(pages, full_text)
+
+    def _parse_online_export(self, pages: list[str], full_text: str) -> list[dict]:
+        """
+        Scotiabank online banking export format:
+          Tue, Jun. 2, 2026 Mortgage Payment -$48.00 $259.11
+          #5206239
+          Sat, May. 30, 2026 Deposit +$1,800.00 $2,164.11
+          Free Interac E-Transfer
+        """
+        transactions = []
+
+        acct_match = re.search(r"\*{4}(\d{4})", full_text)
+        acct_suffix = acct_match.group(1) if acct_match else ""
+
+        tx_re = re.compile(
+            r"^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+"
+            r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.\s+(\d{1,2}),\s+(\d{4})\s+"
+            r"(.+?)\s+([+-]\$[\d,]+\.\d{2})\s+\$[\d,]+\.\d{2}\s*$",
+            re.IGNORECASE,
+        )
+        skip_re = re.compile(
+            r"^(Page created|Ultimate Package|Current balance|Available balance|"
+            r"Document delivery|Transactions|Filters|Current statement|Date Description|#\d+$)",
+            re.IGNORECASE,
+        )
+
+        all_lines: list[str] = []
+        for page in pages:
+            all_lines.extend(page.split("\n"))
+
+        i = 0
+        while i < len(all_lines):
+            line = all_lines[i].strip()
+            i += 1
+
+            if not line or skip_re.match(line):
+                continue
+
+            m = tx_re.match(line)
+            if not m:
+                continue
+
+            month_str, day_str, year_str, desc, raw_amount = m.groups()
+
+            # Collect continuation lines
+            while i < len(all_lines):
+                next_line = all_lines[i].strip()
+                if not next_line or skip_re.match(next_line) or tx_re.match(next_line):
+                    break
+                if re.match(r"^#\d+$", next_line):
+                    i += 1
+                    break
+                desc = desc + " " + next_line
+                i += 1
+
+            date_str = self._normalize_date(f"{month_str} {day_str} {year_str}", int(year_str))
+            if not date_str:
+                continue
+
+            neg = raw_amount.startswith("-")
+            amount = float(raw_amount.lstrip("+-$").replace(",", ""))
+            amount_cents = self.to_cents(amount) if neg else self.to_cents(-amount)
+
+            transactions.append({
+                "date": date_str,
+                "description": desc.strip(),
+                "amount": amount_cents,
+                "account_hint": f"Scotia Chequing {acct_suffix}".strip(),
+                "account_type": "chequing",
+                "source": "pdf",
+                "raw_text": line,
+            })
+
+        return transactions
 
     def _parse_chequing(self, pages: list[str], full_text: str) -> list[dict]:
         """
