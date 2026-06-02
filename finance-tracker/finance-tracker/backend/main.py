@@ -139,7 +139,7 @@ def _import_transactions(db: Session, parsed: list[dict], batch: ImportBatch) ->
                 is_duplicate=True,
                 is_reviewed=True,
                 raw_text=tx_data.get("raw_text"),
-                import_batch_id=batch.id,
+                batch_id=batch.id,
             )
             db.add(dup_tx)
             continue
@@ -158,7 +158,7 @@ def _import_transactions(db: Session, parsed: list[dict], batch: ImportBatch) ->
             confidence=confidence_int,
             is_reviewed=False,
             raw_text=tx_data.get("raw_text"),
-            import_batch_id=batch.id,
+            batch_id=batch.id,
         )
         db.add(tx)
         inserted.append(tx)
