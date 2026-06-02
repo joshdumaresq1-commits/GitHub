@@ -49,8 +49,8 @@ class ScotiabankParser(BaseParser):
         )
 
         skip_re = re.compile(
-            r"^(Amounts|withdrawn|deposited|Balance\(\$\)|Page\s*\d|Here|continued|"
-            r"----|\|$|[A-Z0-9_\-]+$|\d+$)",
+            r"^(Amounts\s+Amounts|withdrawn|deposited|Balance\(\$\)|Page\s*\d|Here|continued|"
+            r"-{3,}|\|$|\d{6,}$|[A-Z0-9_]{10,}$)",
             re.IGNORECASE,
         )
 
@@ -84,16 +84,14 @@ class ScotiabankParser(BaseParser):
             amount = float(amount_str.replace(",", ""))
             balance = float(balance_str.replace(",", ""))
 
-            # Collect continuation description lines
+            # Collect continuation description lines (extra merchant detail on next line)
             while i < len(all_lines):
                 next_line = all_lines[i].strip()
-                if (
-                    next_line
-                    and not tx_re.match(next_line)
-                    and not skip_re.match(next_line)
-                    and not re.match(r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d", next_line, re.IGNORECASE)
-                    and not re.match(r"^(Date|Amounts|Here|Page|continued)", next_line, re.IGNORECASE)
-                ):
+                is_new_tx = tx_re.match(next_line)
+                is_month_start = re.match(r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d", next_line, re.IGNORECASE)
+                is_structural = re.match(r"^(Date\s|Amounts|Here|Page\s*\d|continued|Closing|Opening|-{3,}|\|$)", next_line, re.IGNORECASE)
+                is_junk = re.match(r"^(\d{6,}|[A-Z0-9_]{15,}|\*\d|\d+-\d+)$", next_line, re.IGNORECASE)
+                if next_line and not is_new_tx and not is_month_start and not is_structural and not is_junk:
                     desc = desc + " " + next_line
                     i += 1
                 else:
