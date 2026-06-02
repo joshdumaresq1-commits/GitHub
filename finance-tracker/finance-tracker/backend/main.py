@@ -186,6 +186,61 @@ def serve_review():
     raise HTTPException(status_code=404, detail="review.html not found")
 
 
+@app.post("/api/debug/rbc-trace")
+async def debug_rbc_trace(file: UploadFile = File(...)):
+    """Step-by-step trace of RBC parser logic for debugging."""
+    import tempfile, re
+    contents = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(contents)
+        tmp_path = Path(tmp.name)
+
+    from .parsers.base import BaseParser
+    import pdfplumber
+
+    pages = []
+    with pdfplumber.open(str(tmp_path)) as pdf:
+        for page in pdf.pages:
+            pages.append(page.extract_text() or "")
+    tmp_path.unlink(missing_ok=True)
+
+    full_text = "\n".join(pages)
+    all_lines = []
+    for page in pages:
+        all_lines.extend(page.split("\n"))
+
+    date_re = re.compile(r"^(\d{1,2})(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*", re.IGNORECASE)
+    amount_re = re.compile(r"^(.*?)\s+([\d,]+\.\d{2})(?:\s+([-]?[\d,]+\.\d{2}))?\s*$")
+    skip_re = re.compile(
+        r"^(Date\s+Desc|Opening|Closing|Details|Summary|Important|Protect|Never|Cover|"
+        r"Here\s|Stay\s|Please\s|TM\s|®|https?://|From\s|Your\s+RBC|RBC\s*Private|"
+        r"Royal\s*Bank|P\.O\.|Calgary|How\s*to|www\.|GST\s*Reg|Trademark|Registered|"
+        r"\d+of\d+|\*\d+\*)", re.IGNORECASE)
+    junk_re = re.compile(r"^[\d\-\*\s]+$|^[A-Z0-9_\-]{25,}$", re.IGNORECASE)
+
+    trace = []
+    for i, raw_line in enumerate(all_lines[:60]):  # first 60 lines only
+        line = raw_line.strip()
+        if not line:
+            continue
+        skipped = bool(skip_re.match(line))
+        junked = bool(junk_re.match(line))
+        has_date = bool(date_re.match(line))
+        stripped = date_re.sub("", line).strip() if has_date else line
+        has_amount = bool(amount_re.match(stripped if has_date else line))
+        trace.append({
+            "line_num": i + 1,
+            "raw": line,
+            "skipped": skipped,
+            "junked": junked,
+            "has_date": has_date,
+            "has_amount": has_amount,
+            "after_date_strip": stripped if has_date else None,
+        })
+
+    return {"line_count": len(all_lines), "trace": trace}
+
+
 @app.post("/api/debug/pdf-parse")
 async def debug_pdf_parse(file: UploadFile = File(...)):
     """Run the parser and return raw parsed transactions for debugging."""
