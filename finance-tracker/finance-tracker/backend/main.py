@@ -337,14 +337,21 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     db.add(batch)
     db.flush()
 
+    import logging
+    logger = logging.getLogger("finance_tracker")
+
+    logger.warning(f"UPLOAD: bank={bank_name} parsed={len(parsed)} file={file.filename}")
+
     inserted = _import_transactions(db, parsed, batch)
     batch.transaction_count = len(inserted)
     db.commit()
 
+    logger.warning(f"UPLOAD DONE: inserted={len(inserted)} duplicates={len(parsed)-len(inserted)}")
+
     return {
         "success": True,
         "bank": bank_name,
-        "message": f"Successfully imported {len(inserted)} transactions from {bank_name}",
+        "message": f"Successfully imported {len(inserted)} transactions from {bank_name} ({len(parsed)} parsed, {len(parsed)-len(inserted)} duplicates)",
         "transactions_imported": len(inserted),
         "total_parsed": len(parsed),
         "batch_id": batch.id,
