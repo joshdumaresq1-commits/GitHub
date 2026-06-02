@@ -12,7 +12,7 @@ class ScotiabankParser(BaseParser):
 
     @classmethod
     def detect(cls, text: str) -> bool:
-        return bool(re.search(r"Scotiabank|Bank of Nova Scotia|4-SCOTIA|scotiabank\.com", text, re.IGNORECASE))
+        return bool(re.search(r"Scotiabank|Bank of Nova Scotia|4-SCOTIA|scotiabank\.com|Ultimate Package.*\*{4}\d{4}", text, re.IGNORECASE))
 
     def parse(self, pdf_path: Path) -> list[dict]:
         pages = self.get_pages(pdf_path)
