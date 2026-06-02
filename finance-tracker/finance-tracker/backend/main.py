@@ -186,6 +186,33 @@ def serve_review():
     raise HTTPException(status_code=404, detail="review.html not found")
 
 
+@app.post("/api/debug/pdf-parse")
+async def debug_pdf_parse(file: UploadFile = File(...)):
+    """Run the parser and return raw parsed transactions for debugging."""
+    import tempfile
+    contents = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(contents)
+        tmp_path = Path(tmp.name)
+
+    parser = get_parser(tmp_path)
+    bank = parser.bank_name if parser else "NOT DETECTED"
+
+    if parser is None:
+        tmp_path.unlink(missing_ok=True)
+        return {"bank": bank, "transactions": [], "error": "No parser matched this PDF"}
+
+    try:
+        parsed = parser.parse(tmp_path)
+    except Exception as e:
+        import traceback
+        tmp_path.unlink(missing_ok=True)
+        return {"bank": bank, "transactions": [], "error": str(e), "traceback": traceback.format_exc()}
+
+    tmp_path.unlink(missing_ok=True)
+    return {"bank": bank, "transaction_count": len(parsed), "transactions": parsed}
+
+
 @app.post("/api/debug/pdf-text")
 async def debug_pdf_text(file: UploadFile = File(...)):
     """Extract and return raw text from a PDF for debugging parser issues."""
