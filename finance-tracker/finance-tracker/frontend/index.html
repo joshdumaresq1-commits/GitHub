@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finance Tracker</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>Finance Tracker <span>Personal Finance Dashboard</span></h1>
+  <div class="header-controls">
+    <select class="month-select" id="month-select"></select>
+    <a href="/review.html" class="btn btn-ghost" id="review-btn">
+      &#9776; Evening Review <span class="badge" id="review-badge">0</span>
+    </a>
+    <button class="btn btn-outline" id="sync-gmail-btn">⟳ Sync Gmail</button>
+  </div>
+</header>
+
+<main>
+  <!-- Summary Cards -->
+  <div class="grid-4" id="summary-cards">
+    <div class="card">
+      <div class="card-title">Total Income</div>
+      <div class="card-value income" id="total-income">—</div>
+      <div class="card-sub">this month</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Total Expenses</div>
+      <div class="card-value expense" id="total-expenses">—</div>
+      <div class="card-sub">this month</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Net Savings</div>
+      <div class="card-value savings" id="net-savings">—</div>
+      <div class="card-sub">this month</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Savings Rate</div>
+      <div class="card-value" id="savings-rate">—</div>
+      <div class="card-sub">of income saved</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="section grid-2" id="charts-section">
+    <div class="card">
+      <div class="section-header">
+        <span class="section-title">Monthly Expenses by Category</span>
+        <span class="text-muted text-sm">Last 5 months</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="bar-chart"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-header">
+        <span class="section-title">Category Breakdown</span>
+        <span class="text-muted text-sm" id="doughnut-month-label"></span>
+      </div>
+      <div class="chart-container">
+        <canvas id="doughnut-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Budget vs Actual -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">Budget vs Actual</span>
+    </div>
+    <div class="card">
+      <div class="budget-grid" id="budget-grid">
+        <div class="loading-overlay">
+          <div class="spinner" style="border-color: rgba(0,0,0,0.2); border-top-color: var(--blue);"></div>
+          Loading budgets…
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom row: Transactions + Upload -->
+  <div class="section grid-2">
+    <!-- Recent Transactions -->
+    <div class="card" style="grid-column: span 2;">
+      <div class="section-header">
+        <span class="section-title">Recent Transactions</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="filter-category" class="cat-select" style="border:1px solid var(--border); padding:5px 8px;">
+            <option value="">All categories</option>
+          </select>
+          <button class="btn btn-sm btn-primary" onclick="loadTransactions()">Filter</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Account</th>
+              <th>Category</th>
+              <th style="text-align:right">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="transactions-tbody">
+            <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-secondary)">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">Upload Statement</span>
+    </div>
+    <div class="card">
+      <div class="upload-zone" id="upload-zone">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="14 2 14 8 20 8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="12" y1="18" x2="12" y2="12" stroke-width="1.5" stroke-linecap="round"/>
+          <polyline points="9 15 12 12 15 15" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p><strong>Click to upload</strong> or drag & drop a PDF bank statement</p>
+        <p class="mt-4" style="font-size:0.8rem;">Supports: RBC, Scotiabank, CIBC, BMO, Amex</p>
+      </div>
+      <input type="file" id="file-input" accept=".pdf">
+      <div class="upload-result" id="upload-result"></div>
+    </div>
+  </div>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

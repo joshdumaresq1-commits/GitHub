@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evening Review — Finance Tracker</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="review-header">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h2>&#127748; Evening Review</h2>
+      <p id="review-subtitle">Reviewing your unclassified transactions</p>
+    </div>
+    <a href="/" class="btn btn-outline">← Dashboard</a>
+  </div>
+  <div class="review-progress" style="margin-top:12px;">
+    <div class="review-progress-fill" id="progress-fill" style="width:0%"></div>
+  </div>
+  <p style="font-size:0.8rem;opacity:0.8;margin-top:6px;" id="progress-label">Loading…</p>
+</div>
+
+<div class="review-actions">
+  <button class="btn btn-success" id="bulk-approve-btn">⚡ Bulk approve high confidence (&gt;85%)</button>
+  <button class="btn btn-primary" id="approve-all-btn">✓ Approve all remaining</button>
+  <span class="text-muted text-sm" id="action-status"></span>
+</div>
+
+<div class="review-list" id="review-list">
+  <div class="loading-overlay" style="justify-content:center;">
+    <div class="spinner" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--blue);width:24px;height:24px;border-width:3px;"></div>
+    &nbsp;Loading review queue…
+  </div>
+</div>
+
+<div id="review-complete" class="review-complete hidden">
+  <div style="font-size:3rem;">&#127881;</div>
+  <h2>All done!</h2>
+  <p id="complete-summary">All transactions have been reviewed.</p>
+  <div style="margin-top:20px;">
+    <a href="/" class="btn btn-primary">Back to Dashboard</a>
+  </div>
+</div>
+
+<script src="/static/review.js"></script>
+</body>
+</html>
