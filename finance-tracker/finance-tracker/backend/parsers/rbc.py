@@ -50,12 +50,13 @@ class RBCParser(BaseParser):
 
         skip_re = re.compile(
             r"^(Date\s+Desc|Opening|Closing|Details|Summary|Important|Protect|Never|Cover|"
-            r"Here\s|Stay\s|Please\s|TM\s|®|https?://|From\s|Your\s+RBC|RBC\s*Private|"
+            r"Here\s|Stay\s|Please\s|TM\s|®|https?://|From|Your\s|RBC\s*Private|"
             r"Royal\s*Bank|P\.O\.|Calgary|How\s*to|www\.|GST\s*Reg|Trademark|Registered|"
+            r"Total\w*deposits|Total\w*withdrawals|account\s+statement|"
             r"\d+of\d+|\*\d+\*)",
             re.IGNORECASE,
         )
-        junk_re = re.compile(r"^[\d\-\*\s]+$|^[A-Z0-9_\-]{25,}$", re.IGNORECASE)
+        junk_re = re.compile(r"^[\d\-\*\s\(\)]+$|^[A-Z0-9_\-]{20,}$", re.IGNORECASE)
 
         all_lines: list[str] = []
         for page in pages:
@@ -105,14 +106,26 @@ class RBCParser(BaseParser):
                 amount = float(amount_str.replace(",", ""))
                 balance = float(balance_str.replace(",", "")) if balance_str else None
 
-                # Determine direction
-                if balance is not None and prev_balance is not None:
+                # Determine direction — keyword check overrides balance delta
+                # to handle cases where prev_balance is stale (filtered transactions)
+                is_withdrawal_keyword = bool(re.search(
+                    r"e-transfer\s*sent|payment|withdrawal|atm|insurance|fees|dues|"
+                    r"mortgage|loan|scheduled|transfer\s*to|misc\s*payment|auto\s*ins|"
+                    r"online\s*banking\s*payment",
+                    full_desc, re.IGNORECASE,
+                ))
+                is_deposit_keyword = bool(re.search(
+                    r"payroll|deposit|e-transfer\s*rec|mobile.*deposit",
+                    full_desc, re.IGNORECASE,
+                ))
+                if is_deposit_keyword:
+                    is_deposit = True
+                elif is_withdrawal_keyword:
+                    is_deposit = False
+                elif balance is not None and prev_balance is not None:
                     is_deposit = balance > prev_balance
                 else:
-                    is_deposit = bool(re.search(
-                        r"payroll|deposit|received|e-transfer.*rec|mobile.*deposit|credit",
-                        full_desc, re.IGNORECASE,
-                    ))
+                    is_deposit = False
 
                 if balance is not None:
                     prev_balance = balance
