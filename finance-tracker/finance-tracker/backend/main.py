@@ -358,6 +358,24 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     }
 
 
+@app.get("/api/accounts/summary")
+def accounts_summary(db: Session = Depends(get_db)):
+    """Return min/max date and transaction count per account."""
+    from sqlalchemy import func
+    rows = (
+        db.query(
+            Transaction.account,
+            func.min(Transaction.date).label("earliest"),
+            func.max(Transaction.date).label("latest"),
+            func.count(Transaction.id).label("count"),
+        )
+        .filter(Transaction.is_duplicate == False)
+        .group_by(Transaction.account)
+        .all()
+    )
+    return [{"account": r.account, "earliest": r.earliest, "latest": r.latest, "count": r.count} for r in rows]
+
+
 @app.get("/api/transactions")
 def get_transactions(
     month: Optional[str] = Query(None, description="YYYY-MM"),
