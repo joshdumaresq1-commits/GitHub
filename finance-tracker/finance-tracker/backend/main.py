@@ -186,6 +186,27 @@ def serve_review():
     raise HTTPException(status_code=404, detail="review.html not found")
 
 
+@app.post("/api/debug/pdf-text")
+async def debug_pdf_text(file: UploadFile = File(...)):
+    """Extract and return raw text from a PDF for debugging parser issues."""
+    import tempfile
+    import pdfplumber
+
+    contents = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(contents)
+        tmp_path = Path(tmp.name)
+
+    pages_text = []
+    with pdfplumber.open(str(tmp_path)) as pdf:
+        for i, page in enumerate(pdf.pages):
+            text = page.extract_text() or ""
+            pages_text.append({"page": i + 1, "text": text, "lines": text.split("\n")})
+
+    tmp_path.unlink(missing_ok=True)
+    return {"filename": file.filename, "page_count": len(pages_text), "pages": pages_text}
+
+
 @app.post("/api/upload")
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """Upload a bank statement PDF, auto-detect bank, parse, and store transactions."""
