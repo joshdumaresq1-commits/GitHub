@@ -8,99 +8,128 @@ from .base import BaseParser
 
 
 class ScotiabankParser(BaseParser):
-    """
-    Parser for Scotiabank (The Bank of Nova Scotia) statements.
-    Handles chequing and credit card statements.
-    """
-
     bank_name = "Scotiabank"
 
     @classmethod
     def detect(cls, text: str) -> bool:
-        return bool(re.search(r"Scotiabank|Bank of Nova Scotia|scotia\.com", text, re.IGNORECASE))
+        return bool(re.search(r"Scotiabank|Bank of Nova Scotia|4-SCOTIA|scotiabank\.com", text, re.IGNORECASE))
 
     def parse(self, pdf_path: Path) -> list[dict]:
-        full_text = self.get_text(pdf_path)
+        pages = self.get_pages(pdf_path)
+        full_text = "\n".join(pages)
 
         if re.search(r"visa|mastercard|credit card|credit account", full_text, re.IGNORECASE):
-            return self._parse_credit(full_text)
-        return self._parse_chequing(full_text)
+            return self._parse_credit(pages, full_text)
+        return self._parse_chequing(pages, full_text)
 
-    def _parse_chequing(self, full_text: str) -> list[dict]:
+    def _parse_chequing(self, pages: list[str], full_text: str) -> list[dict]:
         """
-        Scotiabank chequing:
-        Date  Description  Withdrawals  Deposits  Balance
+        Scotiabank chequing PDF format (actual observed format):
+          Apr1 Deposit 10,000.00 10,298.39
+          73559875FreeInteracE-Transfer        <- continuation line
+          Apr1 MB-Transferto 10,000.00 298.39
+          CreditCard                           <- continuation line
+
+        Two amounts per line: transaction_amount  new_balance
+        Direction determined by whether balance went up (deposit) or down (withdrawal).
         """
         transactions = []
-        lines = full_text.split("\n")
         year = self._extract_year(full_text)
 
-        skip = re.compile(
-            r"^(date|description|withdrawal|deposit|balance|opening|closing|"
-            r"scotiabank|account|statement|page|branch|transit|total)",
+        acct_match = re.search(r"(\d{9,})", full_text)
+        acct_suffix = acct_match.group(1)[-4:] if acct_match else ""
+
+        # Transaction line: Month+Day, description, amount, balance
+        tx_re = re.compile(
+            r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\s+"
+            r"(.+?)\s+"
+            r"([\d,]+\.\d{2})\s+"
+            r"([\d,]+\.\d{2})\s*$",
             re.IGNORECASE,
         )
 
-        for line in lines:
-            line = line.strip()
-            if not line or skip.match(line):
+        skip_re = re.compile(
+            r"^(Amounts|withdrawn|deposited|Balance\(\$\)|Page\s*\d|Here|continued|"
+            r"----|\|$|[A-Z0-9_\-]+$|\d+$)",
+            re.IGNORECASE,
+        )
+
+        # Extract opening balance for direction tracking
+        prev_balance: Optional[float] = None
+        ob_match = re.search(r"OpeningBalance\S*\s+\$?([\d,]+\.\d{2})", full_text)
+        if ob_match:
+            prev_balance = float(ob_match.group(1).replace(",", ""))
+
+        all_lines: list[str] = []
+        for page_text in pages:
+            all_lines.extend(page_text.split("\n"))
+
+        i = 0
+        while i < len(all_lines):
+            line = all_lines[i].strip()
+            i += 1
+
+            if not line or skip_re.match(line):
                 continue
 
-            # Date formats: Jan 05, Jan. 05, 01/05
-            m = re.match(
-                r"^((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?)"
-                r"\s+(.+?)\s+"
-                r"([\d,]+\.\d{2})?"
-                r"\s*([\d,]+\.\d{2})?"
-                r"\s*([\d,]+\.\d{2})?$",
-                line,
-                re.IGNORECASE,
-            )
-            if m:
-                raw_date, desc, col3, col4, col5 = m.groups()
-                date_str = self._normalize_date(raw_date, year)
-                if not date_str:
-                    continue
+            m = tx_re.match(line)
+            if not m:
+                continue
 
-                withdrawal = self.clean_amount(col3) if col3 else 0.0
-                deposit = self.clean_amount(col4) if col4 else 0.0
+            month, day, desc, amount_str, balance_str = m.groups()
+            date_str = self._normalize_date(f"{month} {day}", year)
+            if not date_str:
+                continue
 
-                if col5:
-                    # Three amount columns: withdrawal, deposit, balance
-                    if withdrawal > 0:
-                        amount_cents = self.to_cents(withdrawal)
-                    else:
-                        amount_cents = self.to_cents(-deposit)
-                elif col4:
-                    # Two columns: ambiguous; check desc for deposit keywords
-                    if re.search(r"deposit|received|payroll|credit", desc, re.IGNORECASE):
-                        amount_cents = self.to_cents(-withdrawal)  # it was actually a deposit
-                    else:
-                        amount_cents = self.to_cents(withdrawal)
+            amount = float(amount_str.replace(",", ""))
+            balance = float(balance_str.replace(",", ""))
+
+            # Collect continuation description lines
+            while i < len(all_lines):
+                next_line = all_lines[i].strip()
+                if (
+                    next_line
+                    and not tx_re.match(next_line)
+                    and not skip_re.match(next_line)
+                    and not re.match(r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d", next_line, re.IGNORECASE)
+                    and not re.match(r"^(Date|Amounts|Here|Page|continued)", next_line, re.IGNORECASE)
+                ):
+                    desc = desc + " " + next_line
+                    i += 1
                 else:
-                    amount_cents = self.to_cents(withdrawal)
+                    break
 
-                transactions.append(
-                    {
-                        "date": date_str,
-                        "description": desc.strip(),
-                        "amount": amount_cents,
-                        "account_hint": "Scotiabank Chequing",
-                        "account_type": "chequing",
-                        "raw_text": line,
-                    }
-                )
+            # Skip summary lines
+            if re.search(r"OpeningBalance|ClosingBalance", desc, re.IGNORECASE):
+                prev_balance = balance
+                continue
+
+            # Determine direction from balance movement
+            if prev_balance is not None:
+                is_deposit = balance > prev_balance
+            else:
+                is_deposit = bool(re.search(r"deposit|received|credit|refund|e-transfer", desc, re.IGNORECASE))
+
+            prev_balance = balance
+
+            amount_cents = self.to_cents(-amount) if is_deposit else self.to_cents(amount)
+
+            transactions.append({
+                "date": date_str,
+                "description": desc.strip(),
+                "amount": amount_cents,
+                "account_hint": f"Scotia Chequing {acct_suffix}".strip(),
+                "account_type": "chequing",
+                "source": "pdf",
+                "raw_text": line,
+            })
 
         return transactions
 
-    def _parse_credit(self, full_text: str) -> list[dict]:
-        """
-        Scotiabank credit card:
-        Date  Description  Amount (credits shown with CR or negative)
-        """
+    def _parse_credit(self, pages: list[str], full_text: str) -> list[dict]:
         transactions = []
-        lines = full_text.split("\n")
         year = self._extract_year(full_text)
+        lines = full_text.split("\n")
 
         skip = re.compile(
             r"^(date|description|amount|transaction|payment|purchase|"
@@ -133,16 +162,15 @@ class ScotiabankParser(BaseParser):
                 else:
                     amount_cents = self.to_cents(amount)
 
-                transactions.append(
-                    {
-                        "date": date_str,
-                        "description": desc.strip(),
-                        "amount": amount_cents,
-                        "account_hint": "Scotiabank Credit",
-                        "account_type": "credit",
-                        "raw_text": line,
-                    }
-                )
+                transactions.append({
+                    "date": date_str,
+                    "description": desc.strip(),
+                    "amount": amount_cents,
+                    "account_hint": "Scotiabank Credit",
+                    "account_type": "credit",
+                    "source": "pdf",
+                    "raw_text": line,
+                })
 
         return transactions
 
