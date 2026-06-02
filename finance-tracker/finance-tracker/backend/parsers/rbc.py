@@ -40,9 +40,9 @@ class RBCParser(BaseParser):
         acct_match = re.search(r"(\d{5}-\d{7})", full_text)
         acct_suffix = acct_match.group(1)[-4:] if acct_match else ""
 
-        # Date: 10Dec, 2Jan, 15Dec
+        # Date: 10Dec, 2Jan, 15Dec (no space between day and month)
         date_re = re.compile(
-            r"^(\d{1,2})(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+",
+            r"^(\d{1,2})(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*",
             re.IGNORECASE,
         )
         # Amounts at end of line: "60.00 1,985.47" or "3,871.27" or "1,439.93 -545.43"
@@ -189,7 +189,7 @@ class RBCParser(BaseParser):
         """Extract start year, end year, and start month number from statement period."""
         import datetime
         m = re.search(
-            r"From\w*\s*(\w+)\s*\d+,?\s*(\d{4})\s*to\s*(\w+)\s*\d+,?\s*(\d{4})",
+            r"From\w*\s*(January|February|March|April|May|June|July|August|September|October|November|December)\w*\s*\d+,?\s*(\d{4})\w*\s*to\w*\s*(January|February|March|April|May|June|July|August|September|October|November|December)\w*\s*\d+,?\s*(\d{4})",
             text, re.IGNORECASE,
         )
         if m:
