@@ -18,7 +18,7 @@ class ScotiabankParser(BaseParser):
         pages = self.get_pages(pdf_path)
         full_text = "\n".join(pages)
 
-        if re.search(r"visa|mastercard|credit card|credit account", full_text, re.IGNORECASE):
+        if re.search(r"credit limit|minimum payment|payment due date", full_text, re.IGNORECASE):
             return self._parse_credit(pages, full_text)
         return self._parse_chequing(pages, full_text)
 
