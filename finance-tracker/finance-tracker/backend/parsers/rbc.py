@@ -153,49 +153,72 @@ class RBCParser(BaseParser):
         return transactions
 
     def _parse_credit(self, pages: list[str], full_text: str) -> list[dict]:
+        """
+        RBC Visa format:
+          DEC 23 DEC 24 SP PSYCHO BUNNY ST LAURENT QC $61.88
+          74083425358100005845235
+          JAN 13 JAN 13 PAYMENT - THANK YOU / PAIEMENT - MERCI -$6,364.53
+          74510406013619985031409
+
+        Two dates (transaction + posting), description, dollar amount with $ prefix.
+        Reference number on next line (pure digits, 14+).
+        Negative amounts (payments/credits) start with -$.
+        """
         transactions = []
         year = self._extract_year(full_text)
-        lines = full_text.split("\n")
 
-        skip = re.compile(
-            r"^(date|description|amount|transaction|payment|purchase|"
-            r"royal bank|rbc|account|statement|page|opening|closing|total|"
-            r"minimum|credit limit|previous balance|new balance)",
+        # Pattern: MMM DD MMM DD <desc> $amount  (or -$amount)
+        tx_re = re.compile(
+            r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+"
+            r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+"
+            r"(.+?)\s+(-?\$[\d,]+\.\d{2})\s*$",
             re.IGNORECASE,
         )
+        ref_re = re.compile(r"^\d{10,}$")
 
-        for line in lines:
+        all_lines: list[str] = []
+        for page in pages:
+            all_lines.extend(page.split("\n"))
+
+        # Detect year boundary: if statement crosses Dec→Jan, handle year rollover
+        _, end_year, start_month = self._extract_period_years(full_text)
+
+        for line in all_lines:
             line = line.strip()
-            if not line or skip.match(line):
+            if not line or ref_re.match(line):
                 continue
 
-            m = re.match(
-                r"^((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?)"
-                r"\s+(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2}\s+)?"
-                r"(.+?)\s+"
-                r"(\([\d,]+\.\d{2}\)|[\d,]+\.\d{2})\s*(CR)?$",
-                line, re.IGNORECASE,
-            )
-            if m:
-                raw_date, desc, raw_amount, cr_flag = m.groups()
-                date_str = self._normalize_date(f"{raw_date} {year}")
-                if not date_str:
-                    continue
-                amount = self.clean_amount(raw_amount)
-                if cr_flag or raw_amount.startswith("("):
-                    amount_cents = self.to_cents(-abs(amount))
-                else:
-                    amount_cents = self.to_cents(amount)
+            m = tx_re.match(line)
+            if not m:
+                continue
 
-                transactions.append({
-                    "date": date_str,
-                    "description": desc.strip(),
-                    "amount": amount_cents,
-                    "account_hint": "RBC Visa",
-                    "account_type": "credit",
-                    "source": "pdf",
-                    "raw_text": line,
-                })
+            month_str, day_str, desc, raw_amount = m.groups()
+            month_num = self._month_num(month_str)
+            # Transactions in months after the start belong to end_year
+            tx_year = end_year if month_num < start_month else (end_year - 1 if start_month > 1 else end_year)
+            date_str = self._normalize_date(f"{month_str} {day_str} {tx_year}")
+            if not date_str:
+                continue
+
+            desc = desc.strip()
+            # Strip trailing junk appended from sidebar (e.g. "CONTACT US", "Customer Service...")
+            desc = re.sub(r"\s+(CONTACT US|Customer Service.*|www\..*)$", "", desc, flags=re.IGNORECASE)
+
+            # Parse amount: -$6,364.53 → payment (negative = credit to account = deposit)
+            neg = raw_amount.startswith("-")
+            amount = float(raw_amount.lstrip("-$").replace(",", ""))
+            # Charges are positive amounts (money out), payments are negative (money in)
+            amount_cents = self.to_cents(-amount) if neg else self.to_cents(amount)
+
+            transactions.append({
+                "date": date_str,
+                "description": desc,
+                "amount": amount_cents,
+                "account_hint": "RBC Visa",
+                "account_type": "credit",
+                "source": "pdf",
+                "raw_text": line,
+            })
 
         return transactions
 
