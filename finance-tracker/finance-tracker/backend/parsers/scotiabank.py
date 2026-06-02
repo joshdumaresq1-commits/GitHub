@@ -201,8 +201,18 @@ class ScotiabankParser(BaseParser):
         return transactions
 
     def _parse_credit(self, pages: list[str], full_text: str) -> list[dict]:
-        transactions = []
+        """
+        Handles two formats:
+        1. Scotiabank Gold Amex: 001 May 15 May 17 DESCRIPTION 8.07
+        2. Generic Scotiabank credit: Jan 15 DESCRIPTION 8.07
+        """
         year = self._extract_year(full_text)
+
+        # Check for Amex-style numbered transactions
+        if re.search(r"^\d{3}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}", full_text, re.IGNORECASE | re.MULTILINE):
+            return self._parse_amex_credit(pages, full_text, year)
+
+        transactions = []
         lines = full_text.split("\n")
 
         skip = re.compile(
@@ -245,6 +255,84 @@ class ScotiabankParser(BaseParser):
                     "source": "pdf",
                     "raw_text": line,
                 })
+
+        return transactions
+
+    def _parse_amex_credit(self, pages: list[str], full_text: str, year: int) -> list[dict]:
+        """
+        Scotiabank Gold Amex format:
+          001 May 15 May 17 HYBAR NATURALLY 001 VANCOUVER BC 8.07
+          013 May 18 May 21 SAFEWAY #4941 VANCOUVER VANCOUVER 64.10
+          BC                                          <- continuation
+        Ref# trans-date post-date description amount
+        Credits show as negative amounts.
+        """
+        transactions = []
+
+        acct_match = re.search(r"Account#\s*([\dXx\s]+)", full_text)
+        acct_suffix = ""
+        if acct_match:
+            digits = re.sub(r"[^\d]", "", acct_match.group(1))
+            acct_suffix = digits[-4:] if len(digits) >= 4 else digits
+
+        tx_re = re.compile(
+            r"^\d{3}\s+"
+            r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+"
+            r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+"
+            r"(.+?)\s+(-?[\d,]+\.\d{2})\s*$",
+            re.IGNORECASE,
+        )
+        skip_re = re.compile(
+            r"^(TRANS\.|REF\.|SUB-TOTAL|Interest charges|Cash advances|Purchases|"
+            r"Special|Statement|Account#|Page\s*\d|Scotiabank|American Express|"
+            r"MR\s|MRS\s|Continued|Please|ACCOUNT#|As you)",
+            re.IGNORECASE,
+        )
+
+        all_lines: list[str] = []
+        for page in pages:
+            all_lines.extend(page.split("\n"))
+
+        i = 0
+        while i < len(all_lines):
+            line = all_lines[i].strip()
+            i += 1
+
+            if not line or skip_re.match(line):
+                continue
+
+            m = tx_re.match(line)
+            if not m:
+                continue
+
+            month_str, day_str, desc, raw_amount = m.groups()
+            date_str = self._normalize_date(f"{month_str} {day_str}", year)
+            if not date_str:
+                continue
+
+            # Collect short continuation lines (e.g. "BC" wrapping)
+            while i < len(all_lines):
+                next_line = all_lines[i].strip()
+                if not next_line or tx_re.match(next_line) or skip_re.match(next_line) or len(next_line) > 40:
+                    break
+                if re.match(r"^\d{3}\s", next_line):
+                    break
+                desc = desc + " " + next_line
+                i += 1
+
+            neg = raw_amount.startswith("-")
+            amount = float(raw_amount.lstrip("-").replace(",", ""))
+            amount_cents = self.to_cents(-amount) if neg else self.to_cents(amount)
+
+            transactions.append({
+                "date": date_str,
+                "description": desc.strip(),
+                "amount": amount_cents,
+                "account_hint": f"Scotia Amex {acct_suffix}".strip(),
+                "account_type": "credit",
+                "source": "pdf",
+                "raw_text": line,
+            })
 
         return transactions
 
