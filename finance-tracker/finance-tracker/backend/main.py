@@ -92,6 +92,16 @@ def _tx_to_dict(tx: Transaction) -> dict:
     }
 
 
+import re as _re
+
+_PROVINCE_SUFFIX = _re.compile(r'\s+(ON|BC|AB|QC|MB|SK|NS|NB|NL|PE|NT|NU|YT)$')
+
+def _norm_desc(desc: str) -> str:
+    """Normalize description for duplicate comparison: uppercase, remove spaces, strip trailing province."""
+    d = _PROVINCE_SUFFIX.sub('', (desc or '').upper().strip())
+    return d.replace(' ', '')
+
+
 def _is_duplicate(db: Session, date: str, description: str, amount: int) -> bool:
     """Check if a transaction already exists within ±3 days with same amount and similar description."""
     try:
@@ -112,10 +122,9 @@ def _is_duplicate(db: Session, date: str, description: str, amount: int) -> bool
         )
         .all()
     )
-    desc_norm = description.upper().strip()
+    desc_norm = _norm_desc(description)
     for c in candidates:
-        c_norm = (c.description or "").upper().strip()
-        # exact match or one description is a prefix of the other (e.g. trailing city/province suffix)
+        c_norm = _norm_desc(c.description or "")
         if c_norm == desc_norm or c_norm.startswith(desc_norm) or desc_norm.startswith(c_norm):
             return True
     return False
@@ -748,7 +757,7 @@ def deduplicate(db: Session = Depends(get_db)):
         for s in seen:
             if s.date != t.date or s.amount != t.amount or s.account != t.account:
                 continue
-            a, b = (s.description or "").upper().strip(), (t.description or "").upper().strip()
+            a, b = _norm_desc(s.description or ""), _norm_desc(t.description or "")
             if a == b or a.startswith(b) or b.startswith(a):
                 is_dup = True
                 break
