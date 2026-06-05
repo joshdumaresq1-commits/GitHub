@@ -157,6 +157,36 @@ class RBCParser(BaseParser):
             if am:
                 desc_part, amount_str, balance_str = am.group(1).strip(), am.group(2), am.group(3)
 
+                # If desc_part ends with a $-prefixed amount (e.g. "-$40.00"), the regex
+                # misidentified the balance column as the amount. Extract the real amount.
+                dollar_in_desc = re.search(r'\s+(-?\$[\d,]+\.\d{2})\s*$', desc_part)
+                if dollar_in_desc:
+                    real_raw = dollar_in_desc.group(1)
+                    desc_part = desc_part[:dollar_in_desc.start()].strip()
+                    balance = float(amount_str.replace(",", ""))
+                    real_neg = real_raw.startswith("-")
+                    amount_from_desc = float(real_raw.lstrip("-$").replace(",", ""))
+                    # Negative means outflow for chequing
+                    full_desc = " ".join(desc_parts + ([desc_part] if desc_part else [])).strip()
+                    desc_parts = []
+                    if not full_desc or not current_date:
+                        continue
+                    if junk_re.match(full_desc) or re.match(r"^[\d\-]+$", full_desc):
+                        continue
+                    if balance is not None:
+                        prev_balance = balance
+                    amount_cents = self.to_cents(amount_from_desc) if real_neg else self.to_cents(-amount_from_desc)
+                    transactions.append({
+                        "date": current_date,
+                        "description": full_desc,
+                        "amount": amount_cents,
+                        "account_hint": f"RBC Chequing {acct_suffix}".strip(),
+                        "account_type": "chequing",
+                        "source": "pdf",
+                        "raw_text": line,
+                    })
+                    continue
+
                 # Skip pure reference codes with no real description
                 full_desc = " ".join(desc_parts + ([desc_part] if desc_part else [])).strip()
                 desc_parts = []
