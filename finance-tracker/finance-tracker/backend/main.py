@@ -406,7 +406,10 @@ def get_transactions(
         q = q.filter(Transaction.is_reviewed == False)
 
     total = q.count()
-    transactions = q.order_by(Transaction.date.desc()).offset(offset).limit(limit).all()
+    q = q.order_by(Transaction.date.desc()).offset(offset)
+    if not month:  # only enforce limit when not filtering by month
+        q = q.limit(limit)
+    transactions = q.all()
 
     return {
         "total": total,
