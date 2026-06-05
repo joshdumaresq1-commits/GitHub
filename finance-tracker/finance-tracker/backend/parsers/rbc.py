@@ -19,6 +19,8 @@ class RBCParser(BaseParser):
         full_text = "\n".join(pages)
         if re.search(r"Pending Transactions|Posted Transactions|Current Balance.*Pending.*Available Credit", full_text, re.IGNORECASE):
             return self._parse_online_credit(pages, full_text)
+        if re.search(r"Transactions As of:|Date Range:|RBC Private Banking", full_text, re.IGNORECASE):
+            return self._parse_online_chequing(pages, full_text)
         if re.search(r"credit limit|minimum payment|payment due date|credit card statement", full_text, re.IGNORECASE):
             return self._parse_credit(pages, full_text)
         return self._parse_chequing(pages, full_text)
@@ -81,6 +83,129 @@ class RBCParser(BaseParser):
                     "account_type": "credit",
                     "source": "pdf",
                     "raw_text": line,
+                })
+
+        return transactions
+
+    def _parse_online_chequing(self, pages: list[str], full_text: str) -> list[dict]:
+        """
+        RBC chequing online banking export (multi-column layout):
+        Dates appear in a right column; pdfplumber extracts them as a separate block
+        after the transaction descriptions/amounts for each page section.
+
+          [tx block]
+          Jun 4, 2026
+          Jun 1, 2026
+          ...
+          [tx block]
+          May 29, 2026
+          ...
+
+        Strategy: group lines into alternating tx-blocks and date-blocks, then pair
+        each tx unit with its corresponding date in order.
+        """
+        acct_match = re.search(r"\((\d{4,})\)", full_text)
+        acct_suffix = acct_match.group(1)[-4:] if acct_match else ""
+
+        date_re = re.compile(
+            r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),\s+(\d{4})\s*$",
+            re.IGNORECASE,
+        )
+        amount_only_re = re.compile(r"^-?\$[\d,]+\.\d{2}(?:\s+\$[\d,]+\.\d{2})?$")
+        has_amount_re = re.compile(r"-?\$[\d,]+\.\d{2}")
+        ref_code_re = re.compile(r"^[A-Z0-9]{5,9}$")
+
+        skip_re = re.compile(
+            r"^(Royal Bank of Canada|Current Balance|Available Balance|Authorized Overdraft|"
+            r"Date\s+Description|Transactions As of|Date Range:|RBC Private Banking|"
+            r"Withdrawals|Deposits|Balance$|JOSHUA|^\$[\d,]+\.\d{2}\s+\$[\d,]+\.\d{2})",
+            re.IGNORECASE,
+        )
+
+        all_lines = []
+        for page in pages:
+            for line in page.split("\n"):
+                s = line.strip()
+                if s:
+                    all_lines.append(s)
+
+        # Build alternating segments: 'tx' or 'date'
+        segments: list[tuple[str, list[str]]] = []
+        current_type: Optional[str] = None
+        current: list[str] = []
+
+        for line in all_lines:
+            if skip_re.match(line):
+                continue
+            t = "date" if date_re.match(line) else "tx"
+            if t != current_type:
+                if current:
+                    segments.append((current_type, current[:]))
+                current_type = t
+                current = [line]
+            else:
+                current.append(line)
+        if current:
+            segments.append((current_type, current))
+
+        transactions = []
+
+        for i, (seg_type, seg_lines) in enumerate(segments):
+            if seg_type != "tx":
+                continue
+
+            # Collect dates from the immediately following date segment
+            dates: list[str] = []
+            if i + 1 < len(segments) and segments[i + 1][0] == "date":
+                for dl in segments[i + 1][1]:
+                    dm = date_re.match(dl)
+                    if dm:
+                        ds = self._normalize_date(f"{dm.group(1)} {dm.group(2)} {dm.group(3)}")
+                        if ds:
+                            dates.append(ds)
+
+            # Extract tx units: each unit is (description, amount_line)
+            tx_units: list[tuple[str, str]] = []
+            desc_parts: list[str] = []
+
+            for line in seg_lines:
+                if ref_code_re.match(line):
+                    continue
+
+                if amount_only_re.match(line):
+                    if desc_parts:
+                        tx_units.append((" ".join(desc_parts), line))
+                        desc_parts = []
+                elif has_amount_re.search(line):
+                    desc_only = has_amount_re.sub("", line).strip().rstrip("-").strip()
+                    full_desc = (" ".join(desc_parts) + " " + desc_only).strip() if desc_parts else desc_only
+                    tx_units.append((full_desc or line, line))
+                    desc_parts = []
+                else:
+                    desc_parts.append(line)
+
+            for j, (desc, amount_line) in enumerate(tx_units):
+                if j >= len(dates):
+                    break
+                date_str = dates[j]
+
+                amounts = has_amount_re.findall(amount_line)
+                if not amounts:
+                    continue
+
+                raw = amounts[0]
+                neg = raw.startswith("-")
+                amount = float(raw.lstrip("-$").replace(",", ""))
+                amount_cents = self.to_cents(amount) if neg else self.to_cents(-amount)
+
+                transactions.append({
+                    "date": date_str,
+                    "description": desc,
+                    "amount": amount_cents,
+                    "account_hint": f"RBC Chequing {acct_suffix}".strip(),
+                    "account_type": "chequing",
+                    "source": "pdf",
+                    "raw_text": amount_line,
                 })
 
         return transactions
