@@ -105,6 +105,7 @@ DEFAULT_CATEGORIES = [
     {"name": "Babysitting", "color": "#f06292", "budget_monthly": 50000},
     {"name": "Gas & Hydro", "color": "#ff8f00", "budget_monthly": 20000},
     {"name": "Education", "color": "#673ab7", "budget_monthly": 20000},
+    {"name": "Kid Classes", "color": "#f57c00", "budget_monthly": 30000},
     {"name": "Drug/Depot", "color": "#00897b", "budget_monthly": 15000},
     {"name": "Coffee", "color": "#6d4c41", "budget_monthly": 5000},
     {"name": "Other", "color": "#9e9e9e", "budget_monthly": None},
@@ -154,7 +155,7 @@ DEFAULT_RULES = [
     (r"ADDITIONAL CARD FEE|ANNUAL FEE|NSF FEE|CHARGES APPLIED|SERVICE FEE|PURCHASE INT\. CHARGED|FEES", "Other", 18),
     # Entertainment
     (r"CINEPLEX|IMAX|TICKETMASTER|EVENTBRITE|STEAM|XBOX|PLAYSTATION|NINTENDO|APPLE ARCADE|CONCERT|THEATRE|MUSEUM|GALLERY|BOWLING|MINI GOLF|ESCAPE ROOM", "Entertainment", 20),
-    (r"GYMBOREE|GYMBOR|LITTLE KICKERS|CITY OF VAN-PARKS|CITY.*PARKS|RECREATION|SWIM|DANCE|SPORTS CAMP|KIDS.*CLASS", "Entertainment", 18),
+    (r"GYMBOREE|GYMBOR|LITTLE KICKERS|CITY OF VAN-PARKS|CITY.*PARKS|RECREATION|SWIM.*CLASS|SWIM.*LESSON|DANCE.*CLASS|DANCE.*LESSON|SPORTS CAMP|KIDS.*CLASS|MUSIC.*LESSON|PIANO|SOCCER.*KIDS|GYMNASTICS|KARATE|MARTIAL ARTS|SKATING.*LESSON|HOCKEY.*SCHOOL|SKI.*SCHOOL|KIDS.*CAMP|SUMMER CAMP", "Kid Classes", 22),
     (r"BABYSIT|NANNY|CHILDCARE|DAYCARE|E-TRANSFER.*BABYSITTER|BABYSITTER", "Babysitting", 20),
     (r"CFA INSTITUTE|UDEMY|COURSERA|TUITION|SCHOOL|UNIVERSITY|COLLEGE|TEXTBOOK|BOOK.*STORE|BOOK WAREHOUSE", "Education", 20),
     # Travel
