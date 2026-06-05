@@ -75,7 +75,7 @@ async function loadSummary() {
     document.getElementById('total-expenses').textContent = fmtCurrency(data.total_expenses / 100);
     const netEl = document.getElementById('net-savings');
     const netVal = data.net_savings / 100;
-    netEl.textContent = fmtCurrency(netVal);
+    netEl.textContent = (netVal < 0 ? '-' : '') + fmtCurrency(netVal);
     netEl.className = `card-value ${netVal >= 0 ? 'savings' : 'expense'}`;
     document.getElementById('savings-rate').textContent = `${data.savings_rate}%`;
   } catch (e) {
