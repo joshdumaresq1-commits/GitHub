@@ -28,6 +28,7 @@ function populateMonthSelector() {
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (val < '2026-01') break;
     const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
     const opt = document.createElement('option');
     opt.value = val;
