@@ -453,7 +453,7 @@ def get_summary(month: Optional[str] = Query(None), db: Session = Depends(get_db
         .all()
     )
 
-    EXCLUDE_FROM_EXPENSES = {"Transfers", "Income"}
+    EXCLUDE_FROM_EXPENSES = {"Transfers", "Recurring Income", "Non-Recurring Income"}
 
     total_income = sum(t.amount for t in txns if t.amount < 0 and t.category != "Transfers")
     total_expenses = sum(t.amount for t in txns if t.amount > 0 and t.category not in EXCLUDE_FROM_EXPENSES)
@@ -496,7 +496,7 @@ def get_monthly_summary(months: int = Query(5), db: Session = Depends(get_db)):
                 Transaction.date.startswith(month),
                 Transaction.is_duplicate == False,
                 Transaction.amount > 0,
-                Transaction.category.notin_(["Transfers", "Income"]),
+                Transaction.category.notin_(["Transfers", "Recurring Income", "Non-Recurring Income"]),
             )
             .all()
         )
@@ -526,7 +526,7 @@ def get_categories(month: Optional[str] = Query(None), db: Session = Depends(get
             Transaction.date.startswith(month),
             Transaction.is_duplicate == False,
             Transaction.amount > 0,
-            Transaction.category.notin_(["Transfers", "Income"]),
+            Transaction.category.notin_(["Transfers", "Recurring Income", "Non-Recurring Income"]),
         )
         .all()
     )

@@ -94,7 +94,8 @@ DEFAULT_CATEGORIES = [
     {"name": "Shopping", "color": "#9c27b0", "budget_monthly": 30000},
     {"name": "Entertainment", "color": "#e91e63", "budget_monthly": 20000},
     {"name": "Health", "color": "#00bcd4", "budget_monthly": 20000},
-    {"name": "Income", "color": "#8bc34a", "budget_monthly": None},
+    {"name": "Recurring Income", "color": "#8bc34a", "budget_monthly": None},
+    {"name": "Non-Recurring Income", "color": "#aed581", "budget_monthly": None},
     {"name": "Transfers", "color": "#607d8b", "budget_monthly": None},
     {"name": "Subscriptions", "color": "#ff5722", "budget_monthly": 10000},
     {"name": "Travel", "color": "#ffc107", "budget_monthly": 50000},
@@ -138,7 +139,7 @@ DEFAULT_RULES = [
     (r"MORTGAGE|STRATA|MAINTENANCE FEE|PROPERTY MANAGEMENT|ANTHEM PROPERTI", "Housing", 20),
     (r"VANCITY VISA AUTO|VISA AUTO PAYMNT|AUTOMATIC PAYMENT|PREAUTHORIZED PAYMENT.*VANCITY", "Housing", 11),
     # Income
-    (r"E-TRANSFER CREDIT|E-TRANSFER.*REC|INTERAC.*RECEIVED|PAYROLL|DIRECT DEPOSIT|EMPLOYER|SALARY|DIVIDEND|INTEREST PAID TO YOU|TAX REFUND|DEPOSIT", "Income", 20),
+    (r"E-TRANSFER CREDIT|E-TRANSFER.*REC|INTERAC.*RECEIVED|PAYROLL|DIRECT DEPOSIT|EMPLOYER|SALARY|DIVIDEND|INTEREST PAID TO YOU|TAX REFUND|DEPOSIT", "Recurring Income", 20),
     # Transfers
     (r"PAYMENT RECEIVED|PAYMENT - THANK YOU|PAIEMENT.*MERCI|PAYMENT THANK YOU|INTERNET PAYMENT|ONLINE PAYMENT|TRANSFER TO|TRANSFER FROM|CREDIT CARD PAYMENT|AUTOPAY|AUTO-PAY|BILL PAYMENT.*VISA|INTERNAL TRANSFER", "Transfers", 20),
     (r"VISA ROYAL BNK|VISAROYALBNK|BILL PAYMENT-ONLINE VANCITY|E-TRANSFER SENT|ATM DEPOSIT|ATM.*DEPOSIT|MOBILE CHEQUE DEPOSIT", "Transfers", 20),
