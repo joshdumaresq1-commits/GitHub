@@ -89,38 +89,31 @@ class RBCParser(BaseParser):
 
     def _parse_online_chequing(self, pages: list[str], full_text: str) -> list[dict]:
         """
-        RBC chequing online banking export (multi-column layout):
-        Dates appear in a right column; pdfplumber extracts them as a separate block
-        after the transaction descriptions/amounts for each page section.
+        RBC chequing online banking export (inline date format):
+          Jun 4, 2026 e-Transfer sent -$600.00 $3,577.79
+          Josh Dumaresq         <- continuation (appended to desc)
+          H8TVGD                <- ref code (skipped)
+          Jun 1, 2026 ATM deposit - VC633386 $2,140.00 $4,177.79
 
-          [tx block]
-          Jun 4, 2026
-          Jun 1, 2026
-          ...
-          [tx block]
-          May 29, 2026
-          ...
-
-        Strategy: group lines into alternating tx-blocks and date-blocks, then pair
-        each tx unit with its corresponding date in order.
+        Negative amount = withdrawal (positive cents); positive = deposit (negative cents).
+        Optional trailing balance (positive or negative) is discarded.
         """
         acct_match = re.search(r"\((\d{4,})\)", full_text)
         acct_suffix = acct_match.group(1)[-4:] if acct_match else ""
 
-        date_re = re.compile(
-            r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),\s+(\d{4})\s*$",
+        tx_re = re.compile(
+            r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),\s+(\d{4})\s+"
+            r"(.+?)\s+(-?\$[\d,]+\.\d{2})(?:\s+-?\$[\d,]+\.\d{2})?\s*$",
             re.IGNORECASE,
         )
-        amount_only_re = re.compile(r"^-?\$[\d,]+\.\d{2}(?:\s+\$[\d,]+\.\d{2})?$")
-        has_amount_re = re.compile(r"-?\$[\d,]+\.\d{2}")
-        ref_code_re = re.compile(r"^[A-Z0-9]{5,9}$")
-
         skip_re = re.compile(
             r"^(Royal Bank of Canada|Current Balance|Available Balance|Authorized Overdraft|"
-            r"Date\s+Description|Transactions As of|Date Range:|RBC Private Banking|"
-            r"Withdrawals|Deposits|Balance$|JOSHUA|^\$[\d,]+\.\d{2}\s+\$[\d,]+\.\d{2})",
+            r"Description Withdrawals|Transactions$|As of:|Date Range:|RBC Private Banking|"
+            r"Date$|JOSHUA ALEXEI|^\$[\d,]+\.\d{2})",
             re.IGNORECASE,
         )
+        # Pure ref codes (5-9 uppercase alphanumeric) and long token codes
+        junk_re = re.compile(r"^[A-Z0-9]{5,9}$|^[A-Za-z0-9]{12,}$")
 
         all_lines = []
         for page in pages:
@@ -129,84 +122,49 @@ class RBCParser(BaseParser):
                 if s:
                     all_lines.append(s)
 
-        # Build alternating segments: 'tx' or 'date'
-        segments: list[tuple[str, list[str]]] = []
-        current_type: Optional[str] = None
-        current: list[str] = []
-
-        for line in all_lines:
-            if skip_re.match(line):
-                continue
-            t = "date" if date_re.match(line) else "tx"
-            if t != current_type:
-                if current:
-                    segments.append((current_type, current[:]))
-                current_type = t
-                current = [line]
-            else:
-                current.append(line)
-        if current:
-            segments.append((current_type, current))
-
         transactions = []
+        i = 0
 
-        for i, (seg_type, seg_lines) in enumerate(segments):
-            if seg_type != "tx":
+        while i < len(all_lines):
+            line = all_lines[i]
+            i += 1
+
+            if skip_re.match(line) or junk_re.match(line):
                 continue
 
-            # Collect dates from the immediately following date segment
-            dates: list[str] = []
-            if i + 1 < len(segments) and segments[i + 1][0] == "date":
-                for dl in segments[i + 1][1]:
-                    dm = date_re.match(dl)
-                    if dm:
-                        ds = self._normalize_date(f"{dm.group(1)} {dm.group(2)} {dm.group(3)}")
-                        if ds:
-                            dates.append(ds)
+            m = tx_re.match(line)
+            if not m:
+                continue
 
-            # Extract tx units: each unit is (description, amount_line)
-            tx_units: list[tuple[str, str]] = []
-            desc_parts: list[str] = []
+            month_str, day_str, year_str, desc, raw_amount = m.groups()
+            date_str = self._normalize_date(f"{month_str} {day_str} {year_str}")
+            if not date_str:
+                continue
 
-            for line in seg_lines:
-                if ref_code_re.match(line):
-                    continue
-
-                if amount_only_re.match(line):
-                    if desc_parts:
-                        tx_units.append((" ".join(desc_parts), line))
-                        desc_parts = []
-                elif has_amount_re.search(line):
-                    desc_only = has_amount_re.sub("", line).strip().rstrip("-").strip()
-                    full_desc = (" ".join(desc_parts) + " " + desc_only).strip() if desc_parts else desc_only
-                    tx_units.append((full_desc or line, line))
-                    desc_parts = []
-                else:
-                    desc_parts.append(line)
-
-            for j, (desc, amount_line) in enumerate(tx_units):
-                if j >= len(dates):
+            # Collect continuation lines (merchant name, person name, etc.)
+            while i < len(all_lines):
+                next_line = all_lines[i]
+                if skip_re.match(next_line) or tx_re.match(next_line):
                     break
-                date_str = dates[j]
-
-                amounts = has_amount_re.findall(amount_line)
-                if not amounts:
+                if junk_re.match(next_line):
+                    i += 1
                     continue
+                desc = desc + " " + next_line
+                i += 1
 
-                raw = amounts[0]
-                neg = raw.startswith("-")
-                amount = float(raw.lstrip("-$").replace(",", ""))
-                amount_cents = self.to_cents(amount) if neg else self.to_cents(-amount)
+            neg = raw_amount.startswith("-")
+            amount = float(raw_amount.lstrip("-$").replace(",", ""))
+            amount_cents = self.to_cents(amount) if neg else self.to_cents(-amount)
 
-                transactions.append({
-                    "date": date_str,
-                    "description": desc,
-                    "amount": amount_cents,
-                    "account_hint": f"RBC Chequing {acct_suffix}".strip(),
-                    "account_type": "chequing",
-                    "source": "pdf",
-                    "raw_text": amount_line,
-                })
+            transactions.append({
+                "date": date_str,
+                "description": desc.strip(),
+                "amount": amount_cents,
+                "account_hint": f"RBC Chequing {acct_suffix}".strip(),
+                "account_type": "chequing",
+                "source": "pdf",
+                "raw_text": line,
+            })
 
         return transactions
 
