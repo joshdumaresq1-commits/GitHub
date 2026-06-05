@@ -465,15 +465,15 @@ def get_summary(month: Optional[str] = Query(None), db: Session = Depends(get_db
             continue
         by_category[cat] = by_category.get(cat, 0) + t.amount
 
-    net = total_income + total_expenses  # income is negative, so net = income - expenses
-    income_abs = abs(total_income)
-    savings_rate = round((income_abs - total_expenses) / income_abs * 100, 1) if income_abs > 0 else 0.0
+    income_abs = abs(total_income)   # income stored as negative cents; make positive
+    net_savings = income_abs - total_expenses  # positive = saved, negative = overspent
+    savings_rate = round(net_savings / income_abs * 100, 1) if income_abs > 0 else 0.0
 
     return {
         "month": month,
-        "total_income": abs(total_income),
+        "total_income": income_abs,
         "total_expenses": total_expenses,
-        "net_savings": -net,  # positive = saved
+        "net_savings": net_savings,
         "savings_rate": savings_rate,
         "by_category": {k: v for k, v in by_category.items()},
         "transaction_count": len(txns),
@@ -726,6 +726,15 @@ def merge_categories(source: str = Query(...), target: str = Query(...), db: Ses
         db.delete(source_cat)
     db.commit()
     return {"transactions_moved": updated, "category_deleted": source}
+
+
+@app.delete("/api/admin/purge-before")
+def purge_before(before: str = Query(..., description="YYYY-MM, exclusive"), db: Session = Depends(get_db)):
+    """Delete all transactions and import batches before the given month."""
+    deleted = db.query(Transaction).filter(Transaction.date < before).delete(synchronize_session=False)
+    db.query(ImportBatch).filter(ImportBatch.imported_at < f"{before}-01").delete(synchronize_session=False)
+    db.commit()
+    return {"transactions_deleted": deleted, "before": before}
 
 
 @app.post("/api/bulk-categorize")

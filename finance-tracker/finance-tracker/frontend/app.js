@@ -75,7 +75,7 @@ async function loadSummary() {
     document.getElementById('total-expenses').textContent = fmtCurrency(data.total_expenses / 100);
     const netEl = document.getElementById('net-savings');
     const netVal = data.net_savings / 100;
-    netEl.textContent = (netVal < 0 ? '-' : '') + fmtCurrency(netVal);
+    netEl.textContent = (netVal < 0 ? '-' : '') + fmtCurrency(Math.abs(netVal));
     netEl.className = `card-value ${netVal >= 0 ? 'savings' : 'expense'}`;
     document.getElementById('savings-rate').textContent = `${data.savings_rate}%`;
   } catch (e) {
@@ -116,7 +116,7 @@ async function loadTransactions() {
   tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-secondary)">Loading…</td></tr>';
 
   const catFilter = document.getElementById('filter-category').value;
-  let url = `/api/transactions?month=${currentMonth}&limit=50`;
+  let url = `/api/transactions?month=${currentMonth}&limit=2000`;
   if (catFilter) url += `&category=${encodeURIComponent(catFilter)}`;
 
   try {
