@@ -453,10 +453,10 @@ def get_summary(month: Optional[str] = Query(None), db: Session = Depends(get_db
         .all()
     )
 
-    EXCLUDE_CATS = {"Transfers", "Income"}
+    EXCLUDE_FROM_EXPENSES = {"Transfers", "Income"}
 
-    total_income = sum(t.amount for t in txns if t.amount < 0 and t.category not in EXCLUDE_CATS)
-    total_expenses = sum(t.amount for t in txns if t.amount > 0 and t.category not in EXCLUDE_CATS)
+    total_income = sum(t.amount for t in txns if t.amount < 0 and t.category not in {"Transfers"})
+    total_expenses = sum(t.amount for t in txns if t.amount > 0 and t.category not in EXCLUDE_FROM_EXPENSES)
 
     by_category: dict[str, int] = {}
     for t in txns:
