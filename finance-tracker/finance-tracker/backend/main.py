@@ -652,6 +652,18 @@ def get_accounts(db: Session = Depends(get_db)):
     return result
 
 
+@app.delete("/api/admin/delete-transactions")
+def delete_transactions(account: str, account_type: Optional[str] = None, db: Session = Depends(get_db)):
+    """Delete transactions by account (and optionally account_type)."""
+    q = db.query(Transaction).filter(Transaction.account == account)
+    if account_type:
+        q = q.filter(Transaction.account_type == account_type)
+    count = q.count()
+    q.delete()
+    db.commit()
+    return {"deleted": count, "account": account, "account_type": account_type}
+
+
 @app.get("/api/admin/debug-categorize")
 def debug_categorize(desc: str = Query("SAVE ON FOODS"), db: Session = Depends(get_db)):
     """Test categorization and show rules in DB."""
