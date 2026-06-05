@@ -77,7 +77,7 @@ class RBCParser(BaseParser):
                     "date": date_str,
                     "description": desc.strip(),
                     "amount": amount_cents,
-                    "account_hint": "RBC Visa",
+                    "account_hint": f"RBC Visa {acct_suffix}".strip(),
                     "account_type": "credit",
                     "source": "pdf",
                     "raw_text": line,
