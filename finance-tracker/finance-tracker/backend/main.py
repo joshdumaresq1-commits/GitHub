@@ -487,7 +487,7 @@ def get_summary(month: Optional[str] = Query(None), db: Session = Depends(get_db
             continue
         by_category[cat] = by_category.get(cat, 0) + t.amount
 
-    net_savings = total_income - total_expenses  # positive = saved, negative = overspent
+    net_savings = total_income - total_savings - total_expenses
     savings_rate = round(net_savings / total_income * 100, 1) if total_income > 0 else 0.0
 
     return {
