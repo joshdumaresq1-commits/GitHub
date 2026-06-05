@@ -100,7 +100,6 @@ DEFAULT_CATEGORIES = [
     {"name": "Travel", "color": "#ffc107", "budget_monthly": 50000},
     {"name": "Parking", "color": "#795548", "budget_monthly": 5000},
     {"name": "Insurance", "color": "#546e7a", "budget_monthly": 30000},
-    {"name": "Transit", "color": "#0288d1", "budget_monthly": 15000},
     {"name": "Babysitting", "color": "#f06292", "budget_monthly": 50000},
     {"name": "Gas & Hydro", "color": "#ff8f00", "budget_monthly": 20000},
     {"name": "Education", "color": "#673ab7", "budget_monthly": 20000},
@@ -124,8 +123,8 @@ DEFAULT_RULES = [
     # Transport
     (r"ESSO|PETRO-CANADA|PETRO CANADA|SHELL|SUNOCO|ULTRAMAR|CO-OP GAS|CANCO PETROLEUM|UBER(?!.*EATS)|LYFT|TTC|PRESTO|GO TRANSIT|VIA RAIL|PARKING|IMPARK|GREENP|OC TRANSPO|STM|TRANSLINK", "Transport", 20),
     (r"COMPASS AUTOLOAD|EVOCARS|EVOSHARE|EVO CAR|CAR SHARE|MODO|ZIPCAR", "Transport", 20),
-    (r"TRANSLINK|COMPASS|TTC|PRESTO|GO TRANSIT|STM|OC TRANSPO|METRO.*TRANSIT|BUS|SKYTRAIN", "Transit", 20),
-    (r"BCF|BC FERRIES|FERRY", "Transit", 20),
+    (r"TRANSLINK|COMPASS|TTC|PRESTO|GO TRANSIT|STM|OC TRANSPO|METRO.*TRANSIT|BUS|SKYTRAIN", "Transport", 20),
+    (r"BCF|BC FERRIES|FERRY", "Transport", 20),
     (r"PARK INDIGO|CONCORD PARKING|DIAMOND PARKING|IMPARK|GREENP|PARKING|CITY OF VAN.*PARK|OTR \d+|CHV\d+|R PARKING", "Parking", 20),
     # Health
     (r"SHOPPERS DRUG|REXALL|PHARMASAVE|PHARMA|GUARDIAN|LIFE LABS|DYNACARE|FITNESS|YOGA|MASSAGE|DENTIST|DENTAL|OPTOM|PHYSIO|DOCTOR|CLINIC|HOSPITAL|MEDICAL|GOODLIFE|PLANET FITNESS", "Health", 20),

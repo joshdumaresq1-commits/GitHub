@@ -710,6 +710,18 @@ def reseed_rules(db: Session = Depends(get_db)):
     return {"rules_added": added, "transactions_recategorized": len(txns)}
 
 
+@app.post("/api/admin/merge-categories")
+def merge_categories(source: str = Query(...), target: str = Query(...), db: Session = Depends(get_db)):
+    """Move all transactions from source category to target, delete source category and its rules."""
+    updated = db.query(Transaction).filter(Transaction.category == source).update({"category": target})
+    source_cat = db.query(Category).filter_by(name=source).first()
+    if source_cat:
+        db.query(CategoryRule).filter_by(category_id=source_cat.id).delete()
+        db.delete(source_cat)
+    db.commit()
+    return {"transactions_moved": updated, "category_deleted": source}
+
+
 @app.post("/api/bulk-categorize")
 def bulk_categorize(body: BulkCategorize, db: Session = Depends(get_db)):
     """Apply a category to multiple transaction IDs."""
