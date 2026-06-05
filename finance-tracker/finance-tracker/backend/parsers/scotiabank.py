@@ -26,28 +26,41 @@ class ScotiabankParser(BaseParser):
 
     def _parse_online_export(self, pages: list[str], full_text: str) -> list[dict]:
         """
-        Scotiabank online banking export format:
+        Handles two Scotiabank online banking export formats:
+
+        Chequing format (has trailing balance):
           Tue, Jun. 2, 2026 Mortgage Payment -$48.00 $259.11
           #5206239
-          Sat, May. 30, 2026 Deposit +$1,800.00 $2,164.11
-          Free Interac E-Transfer
+
+        Amex format (has Posted/Pending status, no trailing balance):
+          Mon, Jun. 1, 2026 Organic Acres Market Vanc Posted +$38.03
+          Vancouver 015
         """
         transactions = []
 
+        is_amex = bool(re.search(r"Gold Amex|Amex Card|Scotia.*Amex", full_text, re.IGNORECASE))
+
         acct_match = re.search(r"\*{4}(\d{4})", full_text)
         acct_suffix = acct_match.group(1) if acct_match else ""
+        account_hint = f"Scotia Amex {acct_suffix}".strip() if is_amex else f"Scotia Chequing {acct_suffix}".strip()
+        account_type = "credit" if is_amex else "chequing"
 
+        # Match both formats: optional "Posted/Pending" before amount, optional trailing balance
         tx_re = re.compile(
             r"^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+"
             r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.\s+(\d{1,2}),\s+(\d{4})\s+"
-            r"(.+?)\s+([+-]\$[\d,]+\.\d{2})\s+\$[\d,]+\.\d{2}\s*$",
+            r"(.+?)\s+(?:Posted|Pending)?\s*([+-]\$[\d,]+\.\d{2})(?:\s+\$[\d,]+\.\d{2})?\s*$",
             re.IGNORECASE,
         )
         skip_re = re.compile(
             r"^(Page created|Ultimate Package|Current balance|Available balance|"
-            r"Document delivery|Transactions|Filters|Current statement|Date Description|#\d+$)",
+            r"Document delivery|Transactions|Filters|Current statement|Date Description|"
+            r"Scotiabank Gold Amex|Account Summary|Statement balance|Minimum payment|"
+            r"#\d+$)",
             re.IGNORECASE,
         )
+        # Amex continuation junk: "Vancouver 015" or short city+code lines
+        amex_junk_re = re.compile(r"^[A-Za-z\s]+\d{3}$")
 
         all_lines: list[str] = []
         for page in pages:
@@ -67,6 +80,9 @@ class ScotiabankParser(BaseParser):
 
             month_str, day_str, year_str, desc, raw_amount = m.groups()
 
+            # Strip "Posted" or "Pending" that may have been captured in desc
+            desc = re.sub(r"\s+(?:Posted|Pending)\s*$", "", desc.strip(), flags=re.IGNORECASE)
+
             # Collect continuation lines
             while i < len(all_lines):
                 next_line = all_lines[i].strip()
@@ -75,11 +91,19 @@ class ScotiabankParser(BaseParser):
                 if re.match(r"^#\d+$", next_line):
                     i += 1
                     break
+                # Skip Amex city+code continuation lines (e.g. "Vancouver 015")
+                if is_amex and amex_junk_re.match(next_line):
+                    i += 1
+                    continue
                 desc = desc + " " + next_line
                 i += 1
 
             date_str = self._normalize_date(f"{month_str} {day_str} {year_str}", int(year_str))
             if not date_str:
+                continue
+
+            # Skip incomplete lines (e.g. "-$" with no number)
+            if not re.search(r"\d", raw_amount):
                 continue
 
             neg = raw_amount.startswith("-")
@@ -90,8 +114,8 @@ class ScotiabankParser(BaseParser):
                 "date": date_str,
                 "description": desc.strip(),
                 "amount": amount_cents,
-                "account_hint": f"Scotia Chequing {acct_suffix}".strip(),
-                "account_type": "chequing",
+                "account_hint": account_hint,
+                "account_type": account_type,
                 "source": "pdf",
                 "raw_text": line,
             })
