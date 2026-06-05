@@ -75,6 +75,8 @@ async function loadSummary() {
     document.getElementById('total-income').textContent = fmtCurrency(data.total_income / 100);
     document.getElementById('regular-income').textContent = fmtCurrency(data.regular_income / 100);
     document.getElementById('gifts-income').textContent = fmtCurrency(data.gifts_income / 100);
+    document.getElementById('insurance-income').textContent = fmtCurrency(data.insurance_income / 100);
+    document.getElementById('total-savings').textContent = fmtCurrency(data.total_savings / 100);
     document.getElementById('total-expenses').textContent = fmtCurrency(data.total_expenses / 100);
     const netEl = document.getElementById('net-savings');
     const netVal = data.net_savings / 100;

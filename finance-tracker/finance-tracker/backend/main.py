@@ -471,11 +471,13 @@ def get_summary(month: Optional[str] = Query(None), db: Session = Depends(get_db
         .all()
     )
 
-    EXCLUDE_FROM_EXPENSES = {"Transfers", "Income", "Gifts Received/Insurance Payouts"}
+    EXCLUDE_FROM_EXPENSES = {"Transfers", "Income", "Gifts Received", "Insurance Payouts", "Savings"}
 
     regular_income = abs(sum(t.amount for t in txns if t.amount < 0 and t.category == "Income"))
-    gifts_income = abs(sum(t.amount for t in txns if t.amount < 0 and t.category == "Gifts Received/Insurance Payouts"))
-    total_income = regular_income + gifts_income
+    gifts_income = abs(sum(t.amount for t in txns if t.amount < 0 and t.category == "Gifts Received"))
+    insurance_income = abs(sum(t.amount for t in txns if t.amount < 0 and t.category == "Insurance Payouts"))
+    total_income = regular_income + gifts_income + insurance_income
+    total_savings = abs(sum(t.amount for t in txns if t.category == "Savings"))
     total_expenses = sum(t.amount for t in txns if t.amount > 0 and t.category not in EXCLUDE_FROM_EXPENSES)
 
     by_category: dict[str, int] = {}
@@ -492,7 +494,9 @@ def get_summary(month: Optional[str] = Query(None), db: Session = Depends(get_db
         "month": month,
         "regular_income": regular_income,
         "gifts_income": gifts_income,
+        "insurance_income": insurance_income,
         "total_income": total_income,
+        "total_savings": total_savings,
         "total_expenses": total_expenses,
         "net_savings": net_savings,
         "savings_rate": savings_rate,
@@ -517,7 +521,7 @@ def get_monthly_summary(months: int = Query(5), db: Session = Depends(get_db)):
                 Transaction.date.startswith(month),
                 Transaction.is_duplicate == False,
                 Transaction.amount > 0,
-                Transaction.category.notin_(["Transfers", "Income", "Gifts Received/Insurance Payouts"]),
+                Transaction.category.notin_(["Transfers", "Income", "Gifts Received", "Insurance Payouts", "Savings"]),
             )
             .all()
         )
@@ -547,7 +551,7 @@ def get_categories(month: Optional[str] = Query(None), db: Session = Depends(get
             Transaction.date.startswith(month),
             Transaction.is_duplicate == False,
             Transaction.amount > 0,
-            Transaction.category.notin_(["Transfers", "Income", "Gifts Received/Insurance Payouts"]),
+            Transaction.category.notin_(["Transfers", "Income", "Gifts Received", "Insurance Payouts", "Savings"]),
         )
         .all()
     )

@@ -22,14 +22,20 @@
 
 <main>
   <!-- Summary Cards -->
-  <div class="grid-4" id="summary-cards">
+  <div class="grid-5" id="summary-cards">
     <div class="card">
       <div class="card-title">Total Income</div>
       <div class="card-value income" id="total-income">—</div>
-      <div class="card-sub income-breakout">
-        <span>Income: <strong id="regular-income">—</strong></span>
-        <span style="margin-left:8px">Gifts/Insurance: <strong id="gifts-income">—</strong></span>
+      <div class="card-sub" style="line-height:1.7">
+        <div>Income: <strong id="regular-income">—</strong></div>
+        <div>Gifts: <strong id="gifts-income">—</strong></div>
+        <div>Insurance: <strong id="insurance-income">—</strong></div>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Savings</div>
+      <div class="card-value" style="color:#26a69a" id="total-savings">—</div>
+      <div class="card-sub">transferred to savings</div>
     </div>
     <div class="card">
       <div class="card-title">Total Expenses</div>
@@ -37,7 +43,7 @@
       <div class="card-sub">this month</div>
     </div>
     <div class="card">
-      <div class="card-title">Net Savings</div>
+      <div class="card-title">Reinvested Proceeds</div>
       <div class="card-value savings" id="net-savings">—</div>
       <div class="card-sub">this month</div>
     </div>
