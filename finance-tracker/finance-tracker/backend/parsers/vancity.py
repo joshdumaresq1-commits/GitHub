@@ -17,11 +17,90 @@ class VancityParser(BaseParser):
     def parse(self, pdf_path: Path) -> list[dict]:
         pages = self.get_pages(pdf_path)
         full_text = "\n".join(pages)
+        if re.search(r"Transaction Date\s+Posted Date\s+Description", full_text, re.IGNORECASE):
+            return self._parse_online_credit(pages, full_text)
         if re.search(r"credit limit|minimum payment|payment due date", full_text, re.IGNORECASE):
             return self._parse_credit(pages, full_text)
         if re.search(r"chequing|Pay As You Go", full_text, re.IGNORECASE):
             return self._parse_chequing(pages, full_text)
         return []
+
+    def _parse_online_credit(self, pages: list[str], full_text: str) -> list[dict]:
+        """
+        Vancity Visa online export format:
+          2026-05-29 2026-05-29 AMZN Mktp CA*9S11U5YE3 866- CAD $41.99
+          216-1072 ON 00000
+          2026-05-12 2026-05-12 PAYMENT RECEIVED -- THANK CAD -$2,205.43
+          YOU
+
+        Two ISO dates, description, CAD, amount (negative = payment/credit).
+        Continuation lines: location/postal/ref info — appended to description.
+        """
+        transactions = []
+
+        acct_match = re.search(r"(\d{6}X+(\d{4}))", full_text)
+        acct_suffix = acct_match.group(2) if acct_match else ""
+
+        tx_re = re.compile(
+            r"^(\d{4}-\d{2}-\d{2})\s+\d{4}-\d{2}-\d{2}\s+"
+            r"(.+?)\s+CAD\s+(-?\$[\d,]+\.\d{2})\s*$",
+            re.IGNORECASE,
+        )
+        skip_re = re.compile(
+            r"^(Downloaded on|Transactions for|Transaction Date|Credit limit|Available credit|"
+            r"Last payment|Current balance|JOSHUA|Relationship|\d+ of \d+|Vancity GST)",
+            re.IGNORECASE,
+        )
+        junk_re = re.compile(r"^\d{5,}$|^[A-Z]{2}\s+\d{5}$|^\d{4}-\d{2}-\d{2}$")
+
+        all_lines: list[str] = []
+        for page in pages:
+            all_lines.extend(page.split("\n"))
+
+        i = 0
+        while i < len(all_lines):
+            line = all_lines[i].strip()
+            i += 1
+
+            if not line or skip_re.match(line):
+                continue
+
+            m = tx_re.match(line)
+            if not m:
+                continue
+
+            date_str, desc, raw_amount = m.groups()
+
+            # Collect continuation lines (location details, "YOU", etc.)
+            while i < len(all_lines):
+                next_line = all_lines[i].strip()
+                if not next_line or skip_re.match(next_line) or tx_re.match(next_line):
+                    break
+                if junk_re.match(next_line):
+                    i += 1
+                    continue
+                desc = desc + " " + next_line
+                i += 1
+
+            # Clean trailing location noise ("VANCOUVER BC 00000", "ON 00000", etc.)
+            desc = re.sub(r"\s+[A-Z]{2}\s+\d{5}\s*$", "", desc.strip())
+            desc = re.sub(r"\s+\d{5}\s*$", "", desc.strip())
+
+            neg = raw_amount.startswith("-")
+            amount = float(raw_amount.lstrip("-$").replace(",", ""))
+            amount_cents = self.to_cents(-amount) if neg else self.to_cents(amount)
+
+            transactions.append({
+                "date": date_str,
+                "description": desc.strip(),
+                "amount": amount_cents,
+                "account_hint": f"Vancity Visa {acct_suffix}".strip(),
+                "account_type": "credit",
+                "source": "pdf",
+                "raw_text": line,
+            })
+
+        return transactions
 
     def _parse_credit(self, pages: list[str], full_text: str) -> list[dict]:
         """
