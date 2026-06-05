@@ -652,6 +652,21 @@ def get_accounts(db: Session = Depends(get_db)):
     return result
 
 
+@app.get("/api/admin/debug-categorize")
+def debug_categorize(desc: str = Query("SAVE ON FOODS"), db: Session = Depends(get_db)):
+    """Test categorization and show rules in DB."""
+    rules = db.query(CategoryRule).all()
+    cat = Categorizer(db)
+    category, confidence = cat.categorize(desc, 1000)
+    return {
+        "description": desc,
+        "category": category,
+        "confidence": round(confidence * 100),
+        "rules_in_db": len(rules),
+        "sample_rules": [{"pattern": r.pattern, "priority": r.priority} for r in rules[:5]],
+    }
+
+
 @app.post("/api/admin/reseed-rules")
 def reseed_rules(db: Session = Depends(get_db)):
     """Delete all existing rules, re-seed from DEFAULT_RULES, then re-categorize all unreviewed transactions."""
