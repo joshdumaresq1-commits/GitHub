@@ -17,7 +17,7 @@ class VancityParser(BaseParser):
     def parse(self, pdf_path: Path) -> list[dict]:
         pages = self.get_pages(pdf_path)
         full_text = "\n".join(pages)
-        if re.search(r"Transaction Date\s+Posted Date\s+Description", full_text, re.IGNORECASE):
+        if re.search(r"Downloaded on|Transaction Date.*Posted Date", full_text, re.IGNORECASE):
             return self._parse_online_credit(pages, full_text)
         if re.search(r"credit limit|minimum payment|payment due date", full_text, re.IGNORECASE):
             return self._parse_credit(pages, full_text)
