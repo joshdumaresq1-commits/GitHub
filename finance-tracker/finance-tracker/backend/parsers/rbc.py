@@ -17,9 +17,73 @@ class RBCParser(BaseParser):
     def parse(self, pdf_path: Path) -> list[dict]:
         pages = self.get_pages(pdf_path)
         full_text = "\n".join(pages)
+        if re.search(r"Pending Transactions|Posted Transactions|Current Balance.*Pending.*Available Credit", full_text, re.IGNORECASE):
+            return self._parse_online_credit(pages, full_text)
         if re.search(r"credit limit|minimum payment|payment due date|credit card statement", full_text, re.IGNORECASE):
             return self._parse_credit(pages, full_text)
         return self._parse_chequing(pages, full_text)
+
+    def _parse_online_credit(self, pages: list[str], full_text: str) -> list[dict]:
+        """
+        RBC Visa online banking export format:
+          Jun 2, 2026 RBC GRANFONDO WHISTLER, VANCOUVER $108.31
+          May 24, 2026 BCF-CUSTOMER SERVICE CENT, VICTORIA -$51.45
+          May 12, 2026 PAYMENT - THANK YOU / PAIEMENT - MERCI -$5,097.70
+
+        Single date, description with optional city, dollar amount (negative = credit/payment).
+        Includes both pending and posted transactions.
+        """
+        transactions = []
+
+        acct_match = re.search(r"(\d{4})\s+\*+\s+\*+\s+(\d{4})", full_text)
+        acct_suffix = acct_match.group(2) if acct_match else ""
+
+        tx_re = re.compile(
+            r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),\s+(\d{4})\s+"
+            r"(.+?)\s+(-?\$[\d,]+\.\d{2})\s*$",
+            re.IGNORECASE,
+        )
+        skip_re = re.compile(
+            r"^(Pending Transactions|Posted Transactions|Date Description|"
+            r"Royal Bank|RBC Avion|Foreign Currency|Avion Rewards|"
+            r"Current Balance|Statement balance|Minimum payment|Payment due|Make a payment|"
+            r"Transactions Statements)",
+            re.IGNORECASE,
+        )
+
+        for page in pages:
+            for line in page.split("\n"):
+                line = line.strip()
+                if not line or skip_re.match(line):
+                    continue
+
+                m = tx_re.match(line)
+                if not m:
+                    continue
+
+                month_str, day_str, year_str, desc, raw_amount = m.groups()
+                date_str = self._normalize_date(f"{month_str} {day_str} {year_str}")
+                if not date_str:
+                    continue
+
+                # Strip trailing city from description (", VANCOUVER" etc.)
+                desc = re.sub(r",\s+[A-Z\s]+$", "", desc.strip())
+
+                neg = raw_amount.startswith("-")
+                amount = float(raw_amount.lstrip("-$").replace(",", ""))
+                amount_cents = self.to_cents(-amount) if neg else self.to_cents(amount)
+
+                transactions.append({
+                    "date": date_str,
+                    "description": desc.strip(),
+                    "amount": amount_cents,
+                    "account_hint": f"RBC Visa {acct_suffix}".strip(),
+                    "account_type": "credit",
+                    "source": "pdf",
+                    "raw_text": line,
+                })
+
+        return transactions
 
     def _parse_chequing(self, pages: list[str], full_text: str) -> list[dict]:
         """
