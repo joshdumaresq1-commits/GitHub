@@ -93,7 +93,7 @@ def _tx_to_dict(tx: Transaction) -> dict:
 
 
 def _is_duplicate(db: Session, date: str, description: str, amount: int) -> bool:
-    """Check if a transaction already exists within ±3 days with same description and amount."""
+    """Check if a transaction already exists within ±3 days with same amount and similar description."""
     try:
         dt = datetime.strptime(date, "%Y-%m-%d")
     except ValueError:
@@ -102,17 +102,23 @@ def _is_duplicate(db: Session, date: str, description: str, amount: int) -> bool
     date_min = (dt - timedelta(days=3)).strftime("%Y-%m-%d")
     date_max = (dt + timedelta(days=3)).strftime("%Y-%m-%d")
 
-    existing = (
+    candidates = (
         db.query(Transaction)
         .filter(
             Transaction.date >= date_min,
             Transaction.date <= date_max,
-            Transaction.description == description,
             Transaction.amount == amount,
+            Transaction.is_duplicate == False,
         )
-        .first()
+        .all()
     )
-    return existing is not None
+    desc_norm = description.upper().strip()
+    for c in candidates:
+        c_norm = (c.description or "").upper().strip()
+        # exact match or one description is a prefix of the other (e.g. trailing city/province suffix)
+        if c_norm == desc_norm or c_norm.startswith(desc_norm) or desc_norm.startswith(c_norm):
+            return True
+    return False
 
 
 def _import_transactions(db: Session, parsed: list[dict], batch: ImportBatch) -> list[Transaction]:
@@ -729,6 +735,30 @@ def merge_categories(source: str = Query(...), target: str = Query(...), db: Ses
         db.delete(source_cat)
     db.commit()
     return {"transactions_moved": updated, "category_deleted": source}
+
+
+@app.post("/api/admin/deduplicate")
+def deduplicate(db: Session = Depends(get_db)):
+    """Scan for fuzzy duplicates (same date, amount, account; prefix-matching description) and mark extras."""
+    txns = db.query(Transaction).filter(Transaction.is_duplicate == False).order_by(Transaction.date, Transaction.id).all()
+    marked = 0
+    seen: list[Transaction] = []
+    for t in txns:
+        is_dup = False
+        for s in seen:
+            if s.date != t.date or s.amount != t.amount or s.account != t.account:
+                continue
+            a, b = (s.description or "").upper().strip(), (t.description or "").upper().strip()
+            if a == b or a.startswith(b) or b.startswith(a):
+                is_dup = True
+                break
+        if is_dup:
+            t.is_duplicate = True
+            marked += 1
+        else:
+            seen.append(t)
+    db.commit()
+    return {"duplicates_marked": marked}
 
 
 @app.delete("/api/admin/purge-before")
