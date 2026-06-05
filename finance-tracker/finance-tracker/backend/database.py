@@ -88,6 +88,7 @@ def get_db():
 
 DEFAULT_CATEGORIES = [
     {"name": "Housing", "color": "#3f51b5", "budget_monthly": 200000},
+    {"name": "Housing Tax", "color": "#5c6bc0", "budget_monthly": 50000},
     {"name": "Groceries", "color": "#4caf50", "budget_monthly": 60000},
     {"name": "Dining", "color": "#ff9800", "budget_monthly": 40000},
     {"name": "Transport", "color": "#2196f3", "budget_monthly": 30000},
@@ -133,7 +134,8 @@ DEFAULT_RULES = [
     # Pets
     (r"BOSLEY|GLOBAL PET|PETLAND|VET|VETERINAR|ANIMAL HOSPITAL|PET SUPPLY|PETSMART|PETCO", "Health", 18),
     # Housing
-    (r"RENT|ROGERS|BELL|TELUS|SHAW|COGECO|PROPERTY TAX|CONDO FEE|HOA|WATER BILL", "Housing", 20),
+    (r"PROPERTY TAX|MUNICIPAL TAX|CITY.*TAX|SCHOOL TAX|LAND TRANSFER TAX|SPECULATION.*TAX|EMPTY HOMES TAX", "Housing Tax", 22),
+    (r"RENT|ROGERS|BELL|TELUS|SHAW|COGECO|CONDO FEE|HOA|WATER BILL", "Housing", 20),
     (r"HYDRO|ENBRIDGE|FORTIS|BC HYDRO|ELECTRICITY|NATURAL GAS|EPCOR|ATCO GAS", "Gas & Hydro", 20),
     (r"INTACT|DESJARDINS|AVIVA|TD.*INSURANCE|RBC.*INSURANCE|PETLINE|INSURANCE|BCAA", "Insurance", 20),
     (r"MORTGAGE|STRATA|MAINTENANCE FEE|PROPERTY MANAGEMENT|ANTHEM PROPERTI", "Housing", 20),
