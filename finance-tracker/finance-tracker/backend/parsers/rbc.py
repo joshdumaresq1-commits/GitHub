@@ -40,7 +40,7 @@ class RBCParser(BaseParser):
 
         tx_re = re.compile(
             r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),\s+(\d{4})\s+"
-            r"(.+?)\s+(-?\$[\d,]+\.\d{2})\s*$",
+            r"(.+?)\s+(-?\$[\d,]+\.\d{2})(?:\s+\$[\d,]+\.\d{2})?\s*$",
             re.IGNORECASE,
         )
         skip_re = re.compile(
