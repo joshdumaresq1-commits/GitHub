@@ -453,12 +453,16 @@ def get_summary(month: Optional[str] = Query(None), db: Session = Depends(get_db
         .all()
     )
 
-    total_income = sum(t.amount for t in txns if t.amount < 0)
-    total_expenses = sum(t.amount for t in txns if t.amount > 0)
+    EXCLUDE_CATS = {"Transfers", "Income"}
+
+    total_income = sum(t.amount for t in txns if t.amount < 0 and t.category not in EXCLUDE_CATS)
+    total_expenses = sum(t.amount for t in txns if t.amount > 0 and t.category not in EXCLUDE_CATS)
 
     by_category: dict[str, int] = {}
     for t in txns:
         cat = t.category or "Other"
+        if cat in EXCLUDE_CATS:
+            continue
         by_category[cat] = by_category.get(cat, 0) + t.amount
 
     net = total_income + total_expenses  # income is negative, so net = income - expenses
@@ -492,6 +496,7 @@ def get_monthly_summary(months: int = Query(5), db: Session = Depends(get_db)):
                 Transaction.date.startswith(month),
                 Transaction.is_duplicate == False,
                 Transaction.amount > 0,
+                Transaction.category.notin_(["Transfers", "Income"]),
             )
             .all()
         )
@@ -514,13 +519,14 @@ def get_categories(month: Optional[str] = Query(None), db: Session = Depends(get
 
     categories = db.query(Category).all()
 
-    # Get spending per category this month
+    # Get spending per category this month (exclude Transfers and Income)
     txns = (
         db.query(Transaction)
         .filter(
             Transaction.date.startswith(month),
             Transaction.is_duplicate == False,
             Transaction.amount > 0,
+            Transaction.category.notin_(["Transfers", "Income"]),
         )
         .all()
     )
