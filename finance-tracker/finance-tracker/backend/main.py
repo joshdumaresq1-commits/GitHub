@@ -358,6 +358,14 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     }
 
 
+@app.post("/api/admin/merge-accounts")
+def merge_accounts(from_account: str, to_account: str, db: Session = Depends(get_db)):
+    """Rename all transactions from one account name to another."""
+    updated = db.query(Transaction).filter(Transaction.account == from_account).update({"account": to_account})
+    db.commit()
+    return {"merged": updated, "from": from_account, "to": to_account}
+
+
 @app.get("/api/accounts/summary")
 def accounts_summary(db: Session = Depends(get_db)):
     """Return min/max date and transaction count per account."""
