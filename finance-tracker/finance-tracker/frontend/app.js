@@ -73,6 +73,8 @@ async function loadSummary() {
   try {
     const data = await fetchJSON(`/api/summary?month=${currentMonth}`);
     document.getElementById('total-income').textContent = fmtCurrency(data.total_income / 100);
+    document.getElementById('regular-income').textContent = fmtCurrency(data.regular_income / 100);
+    document.getElementById('gifts-income').textContent = fmtCurrency(data.gifts_income / 100);
     document.getElementById('total-expenses').textContent = fmtCurrency(data.total_expenses / 100);
     const netEl = document.getElementById('net-savings');
     const netVal = data.net_savings / 100;

@@ -88,15 +88,15 @@ def get_db():
 
 DEFAULT_CATEGORIES = [
     {"name": "Housing", "color": "#3f51b5", "budget_monthly": 200000},
-    {"name": "Housing Tax", "color": "#5c6bc0", "budget_monthly": 50000},
+    {"name": "Property Tax", "color": "#5c6bc0", "budget_monthly": 50000},
     {"name": "Groceries", "color": "#4caf50", "budget_monthly": 60000},
     {"name": "Dining", "color": "#ff9800", "budget_monthly": 40000},
     {"name": "Transport", "color": "#2196f3", "budget_monthly": 30000},
     {"name": "Shopping", "color": "#9c27b0", "budget_monthly": 30000},
     {"name": "Entertainment", "color": "#e91e63", "budget_monthly": 20000},
     {"name": "Health", "color": "#00bcd4", "budget_monthly": 20000},
-    {"name": "Recurring Income", "color": "#8bc34a", "budget_monthly": None},
-    {"name": "Non-Recurring Income", "color": "#aed581", "budget_monthly": None},
+    {"name": "Income", "color": "#8bc34a", "budget_monthly": None},
+    {"name": "Gifts Received/Insurance Payouts", "color": "#aed581", "budget_monthly": None},
     {"name": "Transfers", "color": "#607d8b", "budget_monthly": None},
     {"name": "Subscriptions", "color": "#ff5722", "budget_monthly": 10000},
     {"name": "Travel", "color": "#ffc107", "budget_monthly": 50000},
@@ -141,14 +141,14 @@ DEFAULT_RULES = [
     # Pets
     (r"BOSLEY|GLOBAL PET|PETLAND|VET|VETERINAR|ANIMAL HOSPITAL|PET SUPPLY|PETSMART|PETCO", "Health", 18),
     # Housing
-    (r"PROPERTY TAX|MUNICIPAL TAX|CITY.*TAX|SCHOOL TAX|LAND TRANSFER TAX|SPECULATION.*TAX|EMPTY HOMES TAX", "Housing Tax", 22),
+    (r"PROPERTY TAX|MUNICIPAL TAX|CITY.*TAX|SCHOOL TAX|LAND TRANSFER TAX|SPECULATION.*TAX|EMPTY HOMES TAX", "Property Tax", 22),
     (r"RENT|ROGERS|BELL|TELUS|SHAW|COGECO|CONDO FEE|HOA|WATER BILL", "Housing", 20),
     (r"HYDRO|ENBRIDGE|FORTIS|BC HYDRO|ELECTRICITY|NATURAL GAS|EPCOR|ATCO GAS", "Gas & Hydro", 20),
     (r"INTACT|DESJARDINS|AVIVA|TD.*INSURANCE|RBC.*INSURANCE|PETLINE|INSURANCE|BCAA", "Insurance", 20),
     (r"MORTGAGE|STRATA|MAINTENANCE FEE|PROPERTY MANAGEMENT|ANTHEM PROPERTI", "Housing", 20),
     (r"VANCITY VISA AUTO|VISA AUTO PAYMNT|AUTOMATIC PAYMENT|PREAUTHORIZED PAYMENT.*VANCITY", "Housing", 11),
     # Income
-    (r"E-TRANSFER CREDIT|E-TRANSFER.*REC|INTERAC.*RECEIVED|PAYROLL|DIRECT DEPOSIT|EMPLOYER|SALARY|DIVIDEND|INTEREST PAID TO YOU|TAX REFUND|DEPOSIT", "Recurring Income", 20),
+    (r"E-TRANSFER CREDIT|E-TRANSFER.*REC|INTERAC.*RECEIVED|PAYROLL|DIRECT DEPOSIT|EMPLOYER|SALARY|DIVIDEND|INTEREST PAID TO YOU|TAX REFUND|DEPOSIT", "Income", 20),
     # Transfers
     (r"PAYMENT RECEIVED|PAYMENT - THANK YOU|PAIEMENT.*MERCI|PAYMENT THANK YOU|INTERNET PAYMENT|ONLINE PAYMENT|TRANSFER TO|TRANSFER FROM|CREDIT CARD PAYMENT|AUTOPAY|AUTO-PAY|BILL PAYMENT.*VISA|INTERNAL TRANSFER", "Transfers", 20),
     (r"VISA ROYAL BNK|VISAROYALBNK|BILL PAYMENT-ONLINE VANCITY|E-TRANSFER SENT|ATM DEPOSIT|ATM.*DEPOSIT|MOBILE CHEQUE DEPOSIT", "Transfers", 20),

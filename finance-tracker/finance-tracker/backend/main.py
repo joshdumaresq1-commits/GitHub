@@ -471,9 +471,11 @@ def get_summary(month: Optional[str] = Query(None), db: Session = Depends(get_db
         .all()
     )
 
-    EXCLUDE_FROM_EXPENSES = {"Transfers", "Recurring Income", "Non-Recurring Income"}
+    EXCLUDE_FROM_EXPENSES = {"Transfers", "Income", "Gifts Received/Insurance Payouts"}
 
-    total_income = sum(t.amount for t in txns if t.amount < 0 and t.category != "Transfers")
+    regular_income = abs(sum(t.amount for t in txns if t.amount < 0 and t.category == "Income"))
+    gifts_income = abs(sum(t.amount for t in txns if t.amount < 0 and t.category == "Gifts Received/Insurance Payouts"))
+    total_income = regular_income + gifts_income
     total_expenses = sum(t.amount for t in txns if t.amount > 0 and t.category not in EXCLUDE_FROM_EXPENSES)
 
     by_category: dict[str, int] = {}
@@ -483,13 +485,14 @@ def get_summary(month: Optional[str] = Query(None), db: Session = Depends(get_db
             continue
         by_category[cat] = by_category.get(cat, 0) + t.amount
 
-    income_abs = abs(total_income)   # income stored as negative cents; make positive
-    net_savings = income_abs - total_expenses  # positive = saved, negative = overspent
-    savings_rate = round(net_savings / income_abs * 100, 1) if income_abs > 0 else 0.0
+    net_savings = total_income - total_expenses  # positive = saved, negative = overspent
+    savings_rate = round(net_savings / total_income * 100, 1) if total_income > 0 else 0.0
 
     return {
         "month": month,
-        "total_income": income_abs,
+        "regular_income": regular_income,
+        "gifts_income": gifts_income,
+        "total_income": total_income,
         "total_expenses": total_expenses,
         "net_savings": net_savings,
         "savings_rate": savings_rate,
@@ -514,7 +517,7 @@ def get_monthly_summary(months: int = Query(5), db: Session = Depends(get_db)):
                 Transaction.date.startswith(month),
                 Transaction.is_duplicate == False,
                 Transaction.amount > 0,
-                Transaction.category.notin_(["Transfers", "Recurring Income", "Non-Recurring Income"]),
+                Transaction.category.notin_(["Transfers", "Income", "Gifts Received/Insurance Payouts"]),
             )
             .all()
         )
@@ -544,7 +547,7 @@ def get_categories(month: Optional[str] = Query(None), db: Session = Depends(get
             Transaction.date.startswith(month),
             Transaction.is_duplicate == False,
             Transaction.amount > 0,
-            Transaction.category.notin_(["Transfers", "Recurring Income", "Non-Recurring Income"]),
+            Transaction.category.notin_(["Transfers", "Income", "Gifts Received/Insurance Payouts"]),
         )
         .all()
     )
