@@ -652,6 +652,37 @@ def get_accounts(db: Session = Depends(get_db)):
     return result
 
 
+@app.post("/api/admin/reseed-rules")
+def reseed_rules(db: Session = Depends(get_db)):
+    """Delete all existing rules, re-seed from DEFAULT_RULES, then re-categorize all unreviewed transactions."""
+    from .database import DEFAULT_RULES, Category, CategoryRule
+    from .categorizer import Categorizer
+
+    # Re-seed rules
+    db.query(CategoryRule).delete()
+    db.commit()
+
+    cat_map = {c.name: c.id for c in db.query(Category).all()}
+    added = 0
+    for pattern, cat_name, priority in DEFAULT_RULES:
+        cat_id = cat_map.get(cat_name)
+        if cat_id:
+            db.add(CategoryRule(pattern=pattern, category_id=cat_id, priority=priority))
+            added += 1
+    db.commit()
+
+    # Re-categorize all unreviewed transactions
+    cat = Categorizer(db)
+    txns = db.query(Transaction).filter(Transaction.is_reviewed == False).all()
+    for tx in txns:
+        category_name, confidence = cat.categorize(tx.description, tx.amount)
+        tx.category = category_name
+        tx.confidence = round(confidence * 100)
+    db.commit()
+
+    return {"rules_added": added, "transactions_recategorized": len(txns)}
+
+
 @app.post("/api/bulk-categorize")
 def bulk_categorize(body: BulkCategorize, db: Session = Depends(get_db)):
     """Apply a category to multiple transaction IDs."""
