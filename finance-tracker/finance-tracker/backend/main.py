@@ -771,8 +771,15 @@ def debug_categorize(desc: str = Query("SAVE ON FOODS"), db: Session = Depends(g
 @app.post("/api/admin/reseed-rules")
 def reseed_rules(db: Session = Depends(get_db)):
     """Delete all existing rules, re-seed from DEFAULT_RULES, then re-categorize all unreviewed transactions."""
-    from .database import DEFAULT_RULES, Category, CategoryRule
+    from .database import DEFAULT_RULES, DEFAULT_CATEGORIES, Category, CategoryRule
     from .categorizer import Categorizer
+
+    # Seed any missing categories
+    existing = {c.name for c in db.query(Category).all()}
+    for cat_data in DEFAULT_CATEGORIES:
+        if cat_data["name"] not in existing:
+            db.add(Category(**cat_data))
+    db.commit()
 
     # Re-seed rules
     db.query(CategoryRule).delete()
