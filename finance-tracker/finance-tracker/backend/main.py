@@ -507,31 +507,50 @@ def get_summary(month: Optional[str] = Query(None), db: Session = Depends(get_db
 
 @app.get("/api/summary/monthly")
 def get_monthly_summary(months: int = Query(5), db: Session = Depends(get_db)):
-    """Returns last N months of expense summary by category for chart."""
+    """Returns last N months of summary by category for chart."""
     result = []
     today = datetime.now()
+    EXCLUDE = {"Transfers", "Income", "Gifts Received", "Insurance Payouts", "Savings"}
 
     for i in range(months - 1, -1, -1):
         dt = today.replace(day=1) - timedelta(days=i * 28)
         month = dt.strftime("%Y-%m")
 
-        txns = (
+        all_txns = (
             db.query(Transaction)
             .filter(
                 Transaction.date.startswith(month),
                 Transaction.is_duplicate == False,
-                Transaction.amount > 0,
-                Transaction.category.notin_(["Transfers", "Income", "Gifts Received", "Insurance Payouts", "Savings"]),
             )
             .all()
         )
 
         by_cat: dict[str, int] = {}
-        for t in txns:
+        for t in all_txns:
             cat = t.category or "Other"
-            by_cat[cat] = by_cat.get(cat, 0) + t.amount
+            if cat not in EXCLUDE and t.amount > 0:
+                by_cat[cat] = by_cat.get(cat, 0) + t.amount
 
-        result.append({"month": month, "by_category": by_cat, "total": sum(by_cat.values())})
+        regular_income = abs(sum(t.amount for t in all_txns if t.amount < 0 and t.category == "Income"))
+        gifts_income = abs(sum(t.amount for t in all_txns if t.amount < 0 and t.category == "Gifts Received"))
+        insurance_income = abs(sum(t.amount for t in all_txns if t.amount < 0 and t.category == "Insurance Payouts"))
+        total_income = regular_income + gifts_income + insurance_income
+        total_savings = abs(sum(t.amount for t in all_txns if t.category == "Savings"))
+        total_expenses = sum(by_cat.values())
+        net = total_income - total_savings - total_expenses
+
+        result.append({
+            "month": month,
+            "by_category": by_cat,
+            "total": total_expenses,
+            "total_income": total_income,
+            "regular_income": regular_income,
+            "gifts_income": gifts_income,
+            "insurance_income": insurance_income,
+            "total_savings": total_savings,
+            "total_expenses": total_expenses,
+            "net": net,
+        })
 
     return result
 

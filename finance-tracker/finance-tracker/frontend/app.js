@@ -17,6 +17,7 @@ async function init() {
     loadBudgetBars(),
     loadTransactions(),
     loadReviewCount(),
+    loadCumulativeTable(),
   ]);
   setupUpload();
   setupGmailSync();
@@ -398,6 +399,63 @@ function setupUpload() {
     result.style.display = 'block';
     setTimeout(() => { result.style.display = 'none'; }, 6000);
   }
+}
+
+async function loadCumulativeTable() {
+  try {
+    const data = await fetchJSON('/api/summary/monthly?months=6');
+    renderCumulativeTable(data);
+  } catch (e) {
+    console.error('loadCumulativeTable:', e);
+  }
+}
+
+function renderCumulativeTable(months) {
+  const tbody = document.getElementById('cumulative-tbody');
+  const tfoot = document.getElementById('cumulative-tfoot');
+
+  let totIncome = 0, totGifts = 0, totInsurance = 0, totTotalIncome = 0;
+  let totSavings = 0, totExpenses = 0, totNet = 0;
+
+  tbody.innerHTML = months.map(m => {
+    const [y, mo] = m.month.split('-');
+    const label = new Date(+y, +mo - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+    const net = m.net || 0;
+    const netClass = net < 0 ? 'neg' : 'pos';
+    const netStr = (net < 0 ? '-' : '') + fmtCurrency(Math.abs(net) / 100);
+
+    totIncome      += m.regular_income  || 0;
+    totGifts       += m.gifts_income    || 0;
+    totInsurance   += m.insurance_income|| 0;
+    totTotalIncome += m.total_income    || 0;
+    totSavings     += m.total_savings   || 0;
+    totExpenses    += m.total_expenses  || 0;
+    totNet         += net;
+
+    return `<tr>
+      <td>${label}</td>
+      <td>${fmtCurrency((m.regular_income  || 0) / 100)}</td>
+      <td>${fmtCurrency((m.gifts_income    || 0) / 100)}</td>
+      <td>${fmtCurrency((m.insurance_income|| 0) / 100)}</td>
+      <td><strong>${fmtCurrency((m.total_income || 0) / 100)}</strong></td>
+      <td>${fmtCurrency((m.total_savings   || 0) / 100)}</td>
+      <td>${fmtCurrency((m.total_expenses  || 0) / 100)}</td>
+      <td class="${netClass}"><strong>${netStr}</strong></td>
+    </tr>`;
+  }).join('');
+
+  const totNetClass = totNet < 0 ? 'neg' : 'pos';
+  const totNetStr = (totNet < 0 ? '-' : '') + fmtCurrency(Math.abs(totNet) / 100);
+  tfoot.innerHTML = `<tr>
+    <td>Total</td>
+    <td>${fmtCurrency(totIncome    / 100)}</td>
+    <td>${fmtCurrency(totGifts     / 100)}</td>
+    <td>${fmtCurrency(totInsurance / 100)}</td>
+    <td><strong>${fmtCurrency(totTotalIncome / 100)}</strong></td>
+    <td>${fmtCurrency(totSavings   / 100)}</td>
+    <td>${fmtCurrency(totExpenses  / 100)}</td>
+    <td class="${totNetClass}"><strong>${totNetStr}</strong></td>
+  </tr>`;
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────

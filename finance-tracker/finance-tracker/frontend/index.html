@@ -76,6 +76,34 @@
     </div>
   </div>
 
+  <!-- Monthly Cumulative Summary -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">Monthly Summary</span>
+      <span class="text-muted text-sm">Year to date</span>
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <table class="cumulative-table" id="cumulative-table">
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Income</th>
+            <th>Gifts Received</th>
+            <th>Insurance</th>
+            <th>Total Income</th>
+            <th>Savings</th>
+            <th>Expenses</th>
+            <th>Reinvested</th>
+          </tr>
+        </thead>
+        <tbody id="cumulative-tbody">
+          <tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-secondary)">Loading…</td></tr>
+        </tbody>
+        <tfoot id="cumulative-tfoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
   <!-- Budget vs Actual -->
   <div class="section">
     <div class="section-header">
