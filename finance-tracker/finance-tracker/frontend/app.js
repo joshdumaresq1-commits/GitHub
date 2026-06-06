@@ -453,8 +453,14 @@ function renderCumulativeTable(months) {
   const tbody = document.getElementById('cumulative-tbody');
   const tfoot = document.getElementById('cumulative-tfoot');
 
+  // Amortized monthly amounts (cents)
+  const PROP_TAX_MONTHLY   = Math.round(4107 * 2 / 12 * 100); // $4,107 advance × 2 ÷ 12
+  const INCOME_TAX_MONTHLY = Math.round(9385 / 12 * 100);     // YTD total ÷ 12
+  const INITIATION_MONTHLY = Math.round(2000 / 12 * 100);     // $2,000 due Oct ÷ 12
+  const AMORT_MONTHLY = PROP_TAX_MONTHLY + INCOME_TAX_MONTHLY + INITIATION_MONTHLY;
+
   let totIncome = 0, totGifts = 0, totInsurance = 0, totTotalIncome = 0;
-  let totSavings = 0, totExpenses = 0, totNet = 0;
+  let totSavings = 0, totExpenses = 0, totNet = 0, totAdjExp = 0, totAdjNet = 0;
 
   tbody.innerHTML = months.map(m => {
     const [y, mo] = m.month.split('-');
@@ -463,37 +469,52 @@ function renderCumulativeTable(months) {
     const netClass = net < 0 ? 'neg' : 'pos';
     const netStr = (net < 0 ? '-' : '') + fmtCurrency(Math.abs(net) / 100);
 
-    totIncome      += m.regular_income  || 0;
-    totGifts       += m.gifts_income    || 0;
-    totInsurance   += m.insurance_income|| 0;
-    totTotalIncome += m.total_income    || 0;
-    totSavings     += m.total_savings   || 0;
-    totExpenses    += m.total_expenses  || 0;
+    // Adjusted: strip actual lump tax payments, add flat monthly amortized amounts
+    const cat = m.by_category || {};
+    const actualPropTax   = (cat['Property Tax']  || 0);
+    const actualIncomeTax = (cat['Income Taxes']  || 0);
+    const adjExp = (m.total_expenses || 0) - actualPropTax - actualIncomeTax + AMORT_MONTHLY;
+    const adjNet = (m.total_income || 0) - (m.total_savings || 0) - adjExp;
+    const adjNetClass = adjNet < 0 ? 'neg' : 'pos';
+    const adjNetStr = (adjNet < 0 ? '-' : '') + fmtCurrency(Math.abs(adjNet) / 100);
+
+    totIncome      += m.regular_income   || 0;
+    totGifts       += m.gifts_income     || 0;
+    totInsurance   += m.insurance_income || 0;
+    totTotalIncome += m.total_income     || 0;
+    totSavings     += m.total_savings    || 0;
+    totExpenses    += m.total_expenses   || 0;
     totNet         += net;
+    totAdjExp      += adjExp;
+    totAdjNet      += adjNet;
 
     return `<tr>
       <td>${label}</td>
-      <td>${fmtCurrency((m.regular_income  || 0) / 100)}</td>
-      <td>${fmtCurrency((m.gifts_income    || 0) / 100)}</td>
-      <td>${fmtCurrency((m.insurance_income|| 0) / 100)}</td>
+      <td>${fmtCurrency((m.regular_income   || 0) / 100)}</td>
+      <td>${fmtCurrency((m.gifts_income     || 0) / 100)}</td>
+      <td>${fmtCurrency((m.insurance_income || 0) / 100)}</td>
       <td><strong>${fmtCurrency((m.total_income || 0) / 100)}</strong></td>
-      <td>${fmtCurrency((m.total_savings   || 0) / 100)}</td>
-      <td>${fmtCurrency((m.total_expenses  || 0) / 100)}</td>
+      <td>${fmtCurrency((m.total_savings    || 0) / 100)}</td>
+      <td>${fmtCurrency((m.total_expenses   || 0) / 100)}</td>
       <td class="${netClass}"><strong>${netStr}</strong></td>
+      <td style="border-left:2px solid #f0f0f0">${fmtCurrency(adjExp / 100)}</td>
+      <td class="${adjNetClass}"><strong>${adjNetStr}</strong></td>
     </tr>`;
   }).join('');
 
-  const totNetClass = totNet < 0 ? 'neg' : 'pos';
-  const totNetStr = (totNet < 0 ? '-' : '') + fmtCurrency(Math.abs(totNet) / 100);
+  const totNetClass    = totNet    < 0 ? 'neg' : 'pos';
+  const totAdjNetClass = totAdjNet < 0 ? 'neg' : 'pos';
   tfoot.innerHTML = `<tr>
     <td>Total</td>
-    <td>${fmtCurrency(totIncome    / 100)}</td>
-    <td>${fmtCurrency(totGifts     / 100)}</td>
-    <td>${fmtCurrency(totInsurance / 100)}</td>
+    <td>${fmtCurrency(totIncome      / 100)}</td>
+    <td>${fmtCurrency(totGifts       / 100)}</td>
+    <td>${fmtCurrency(totInsurance   / 100)}</td>
     <td><strong>${fmtCurrency(totTotalIncome / 100)}</strong></td>
-    <td>${fmtCurrency(totSavings   / 100)}</td>
-    <td>${fmtCurrency(totExpenses  / 100)}</td>
-    <td class="${totNetClass}"><strong>${totNetStr}</strong></td>
+    <td>${fmtCurrency(totSavings     / 100)}</td>
+    <td>${fmtCurrency(totExpenses    / 100)}</td>
+    <td class="${totNetClass}"><strong>${(totNet < 0 ? '-' : '') + fmtCurrency(Math.abs(totNet) / 100)}</strong></td>
+    <td style="border-left:2px solid #e0e0e0">${fmtCurrency(totAdjExp / 100)}</td>
+    <td class="${totAdjNetClass}"><strong>${(totAdjNet < 0 ? '-' : '') + fmtCurrency(Math.abs(totAdjNet) / 100)}</strong></td>
   </tr>`;
 }
 
