@@ -96,6 +96,8 @@ DEFAULT_CATEGORIES = [
     {"name": "Entertainment", "color": "#e91e63", "budget_monthly": 20000},
     {"name": "Health", "color": "#00bcd4", "budget_monthly": 20000},
     {"name": "Dentist", "color": "#26c6da", "budget_monthly": 30000},
+    {"name": "Haircut", "color": "#8d6e63", "budget_monthly": 10000},
+    {"name": "Gym", "color": "#42a5f5", "budget_monthly": 15000},
     {"name": "Income", "color": "#8bc34a", "budget_monthly": None},
     {"name": "Gifts Received", "color": "#aed581", "budget_monthly": None},
     {"name": "Insurance Payouts", "color": "#80cbc4", "budget_monthly": None},
@@ -144,8 +146,10 @@ DEFAULT_RULES = [
     (r"PARK INDIGO|CONCORD PARKING|DIAMOND PARKING|IMPARK|GREENP|PARKING|CITY OF VAN.*PARK|PAYBYPHONE|OTR \d+|CHV\d+|R PARKING", "Parking", 22),
     # Health
     (r"DENTIST|DENTAL|ORTHODONT|ENDODONT|PERIODONT|ORAL SURGE|TEETH", "Dentist", 23),
-    (r"LIFE LABS|DYNACARE|FITNESS|YOGA|MASSAGE|OPTOM|PHYSIO|DOCTOR|CLINIC|HOSPITAL|MEDICAL|GOODLIFE|PLANET FITNESS", "Health", 20),
-    (r"STAR KIDS HAIR|HAIR SALON|BARBER|SPA|BEAUTY|NAIL|GROOMING", "Health", 18),
+    (r"GOODLIFE|PLANET FITNESS|YMCA|GYM|CROSSFIT|EQUINOX|ANYTIME FITNESS|ORANGETHEORY|F45|CRUNCH FITNESS", "Gym", 23),
+    (r"STAR KIDS HAIR|HAIR SALON|BARBER|HAIRCUT|GREAT CLIPS|SPORT CLIPS|CUTS|COIFFURE", "Haircut", 23),
+    (r"LIFE LABS|DYNACARE|FITNESS|YOGA|MASSAGE|OPTOM|PHYSIO|DOCTOR|CLINIC|HOSPITAL|MEDICAL", "Health", 20),
+    (r"SPA|BEAUTY|NAIL|GROOMING", "Health", 18),
     # Housing
     (r"PROPERTY TAX|MUNICIPAL TAX|CITY.*TAX|SCHOOL TAX|LAND TRANSFER TAX|SPECULATION.*TAX|EMPTY HOMES TAX", "Property Tax", 22),
     (r"RENT|ROGERS|BELL|TELUS|SHAW|COGECO|CONDO FEE|HOA|WATER BILL", "Housing", 20),
