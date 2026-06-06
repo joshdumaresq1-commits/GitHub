@@ -245,6 +245,7 @@ function renderBudgetBars(cats, avg) {
     'Groceries':           87000,
     'Dining':              69000,
     'Health':              56500,
+    'Dentist':             30000,
     'Shopping':            64500,
     'Entertainment':       70000,
     'Drug/Depot':          40800,

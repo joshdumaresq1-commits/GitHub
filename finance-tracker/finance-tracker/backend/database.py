@@ -95,6 +95,7 @@ DEFAULT_CATEGORIES = [
     {"name": "Shopping", "color": "#9c27b0", "budget_monthly": 30000},
     {"name": "Entertainment", "color": "#e91e63", "budget_monthly": 20000},
     {"name": "Health", "color": "#00bcd4", "budget_monthly": 20000},
+    {"name": "Dentist", "color": "#26c6da", "budget_monthly": 30000},
     {"name": "Income", "color": "#8bc34a", "budget_monthly": None},
     {"name": "Gifts Received", "color": "#aed581", "budget_monthly": None},
     {"name": "Insurance Payouts", "color": "#80cbc4", "budget_monthly": None},
@@ -142,7 +143,8 @@ DEFAULT_RULES = [
     (r"BCF|BC FERRIES|FERRY", "Transport", 20),
     (r"PARK INDIGO|CONCORD PARKING|DIAMOND PARKING|IMPARK|GREENP|PARKING|CITY OF VAN.*PARK|PAYBYPHONE|OTR \d+|CHV\d+|R PARKING", "Parking", 22),
     # Health
-    (r"LIFE LABS|DYNACARE|FITNESS|YOGA|MASSAGE|DENTIST|DENTAL|OPTOM|PHYSIO|DOCTOR|CLINIC|HOSPITAL|MEDICAL|GOODLIFE|PLANET FITNESS", "Health", 20),
+    (r"DENTIST|DENTAL|ORTHODONT|ENDODONT|PERIODONT|ORAL SURGE|TEETH", "Dentist", 23),
+    (r"LIFE LABS|DYNACARE|FITNESS|YOGA|MASSAGE|OPTOM|PHYSIO|DOCTOR|CLINIC|HOSPITAL|MEDICAL|GOODLIFE|PLANET FITNESS", "Health", 20),
     (r"STAR KIDS HAIR|HAIR SALON|BARBER|SPA|BEAUTY|NAIL|GROOMING", "Health", 18),
     # Housing
     (r"PROPERTY TAX|MUNICIPAL TAX|CITY.*TAX|SCHOOL TAX|LAND TRANSFER TAX|SPECULATION.*TAX|EMPTY HOMES TAX", "Property Tax", 22),
