@@ -455,7 +455,7 @@ function renderCumulativeTable(months) {
 
   // Amortized monthly amounts (cents)
   const PROP_TAX_MONTHLY   = Math.round(4107 * 2 / 12 * 100); // $4,107 advance × 2 ÷ 12
-  const INCOME_TAX_MONTHLY = Math.round(9385 / 12 * 100);     // YTD total ÷ 12
+  const INCOME_TAX_MONTHLY = Math.round(9385 / 12 * 100 * 0.5); // YTD total ÷ 12, reduced 50% for future years
   const INITIATION_MONTHLY = Math.round(2000 / 12 * 100);     // $2,000 due Oct ÷ 12
   const AMORT_MONTHLY = PROP_TAX_MONTHLY + INCOME_TAX_MONTHLY + INITIATION_MONTHLY;
 
