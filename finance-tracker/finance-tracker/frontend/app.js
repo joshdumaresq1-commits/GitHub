@@ -234,27 +234,58 @@ function renderDoughnutChart(cats) {
 function renderBudgetBars(cats, avg) {
   const grid = document.getElementById('budget-grid');
 
-  // Only show categories that have spending this month OR a trailing avg
-  const relevant = cats.filter(c => c.spent > 0 || (avg[c.name] || 0) > 0);
+  // Monthly budget targets (cents)
+  const BUDGET = {
+    'Housing':             380000,
+    'Property Tax':         68500,
+    'Income Taxes':         39100,
+    'Insurance':            46000,
+    'Memberships':         103300,
+    'Subscriptions':        3600,
+    'Gas & Hydro':          8900,
+    'Groceries':           87000,
+    'Dining':              69000,
+    'Health':              56500,
+    'Shopping':            64500,
+    'Entertainment':       70000,
+    'Drug/Depot':          40800,
+    'Transport':           40300,
+    'Coffee':               8500,
+    'Babysitting':          6500,
+    'Tailor/Drycleaning':   5800,
+    'Pet':                  3500,
+    'Parking':              2900,
+    'Travel':              38600,
+    'Home Improvement':    73800,
+    'Education':           14900,
+    'Kid Classes':          1600,
+    'Other':               23400,
+  };
+
+  // Show categories with spending this month, a trailing avg, OR a budget
+  const relevant = cats.filter(c => c.spent > 0 || (avg[c.name] || 0) > 0 || (BUDGET[c.name] || 0) > 0);
 
   if (!relevant.length) {
     grid.innerHTML = '<p class="text-muted text-sm">No spending data for this period.</p>';
     return;
   }
 
-  // Sort by current month spending descending
   relevant.sort((a, b) => (b.spent || 0) - (a.spent || 0));
 
   grid.innerHTML = relevant.map(c => {
-    const actual = c.spent || 0;          // cents
-    const trailing = avg[c.name] || 0;    // cents
-    const max = Math.max(actual, trailing, 1);
-    const actualPct = Math.round(actual / max * 100);
+    const actual   = c.spent || 0;
+    const trailing = avg[c.name]    || 0;
+    const budget   = BUDGET[c.name] || 0;
+    const max = Math.max(actual, trailing, budget, 1);
+    const actualPct   = Math.round(actual   / max * 100);
     const trailingPct = Math.round(trailing / max * 100);
-    const diff = actual - trailing;
-    const over = diff > 0;
-    const diffStr = (over ? '+' : '-') + fmtCurrency(Math.abs(diff) / 100);
-    const diffColor = over ? 'var(--red)' : 'var(--green)';
+    const budgetPct   = Math.round(budget   / max * 100);
+    const vsAvg    = actual - trailing;
+    const vsBudget = actual - budget;
+    const avgColor    = vsAvg    > 0 ? 'var(--red)' : 'var(--green)';
+    const budgetColor = vsBudget > 0 ? 'var(--red)' : 'var(--green)';
+    const avgStr    = (vsAvg    > 0 ? '+' : '-') + fmtCurrency(Math.abs(vsAvg)    / 100);
+    const budgetStr = (vsBudget > 0 ? '+' : '-') + fmtCurrency(Math.abs(vsBudget) / 100);
 
     return `
     <div class="budget-item">
@@ -263,35 +294,42 @@ function renderBudgetBars(cats, avg) {
           <span class="budget-dot" style="background:${c.color}"></span>
           ${c.name}
         </span>
-        <span class="budget-amounts">
-          <span style="font-weight:600">${fmtCurrency(actual / 100)}</span>
-          <span style="color:var(--text-secondary);margin:0 4px">vs</span>
-          <span style="color:var(--text-secondary)">${fmtCurrency(trailing / 100)} avg</span>
-          ${trailing > 0 ? `<span style="color:${diffColor};margin-left:6px;font-size:0.78rem">${diffStr}</span>` : ''}
+        <span class="budget-amounts" style="display:flex;gap:12px;align-items:center">
+          <span><strong>${fmtCurrency(actual / 100)}</strong> actual</span>
+          <span style="color:var(--text-secondary)">${fmtCurrency(trailing / 100)} avg
+            ${trailing > 0 ? `<span style="color:${avgColor};font-size:0.75rem">(${avgStr})</span>` : ''}
+          </span>
+          <span style="color:var(--text-secondary)">${fmtCurrency(budget / 100)} budget
+            ${budget > 0 ? `<span style="color:${budgetColor};font-size:0.75rem">(${budgetStr})</span>` : ''}
+          </span>
         </span>
       </div>
       <div class="budget-bar-track" style="position:relative">
         <div class="budget-bar-fill" style="width:${actualPct}%;background:${c.color};opacity:0.9"></div>
-        ${trailing > 0 ? `<div style="position:absolute;top:0;left:${trailingPct}%;width:2px;height:100%;background:rgba(0,0,0,0.25);border-radius:2px"></div>` : ''}
+        ${trailing > 0 ? `<div style="position:absolute;top:0;left:${trailingPct}%;width:2px;height:100%;background:rgba(0,0,0,0.25)" title="5-mo avg"></div>` : ''}
+        ${budget > 0   ? `<div style="position:absolute;top:0;left:${budgetPct}%;width:2px;height:100%;background:rgba(0,0,0,0.6)" title="Budget"></div>` : ''}
       </div>
     </div>`;
   }).join('');
 
   const totalActual   = relevant.reduce((s, c) => s + (c.spent || 0), 0);
-  const totalTrailing = relevant.reduce((s, c) => s + (avg[c.name] || 0), 0);
-  const totalDiff     = totalActual - totalTrailing;
-  const totalDiffColor = totalDiff > 0 ? 'var(--red)' : 'var(--green)';
-  const totalDiffStr   = (totalDiff > 0 ? '+' : '-') + fmtCurrency(Math.abs(totalDiff) / 100);
+  const totalTrailing = relevant.reduce((s, c) => s + (avg[c.name]    || 0), 0);
+  const totalBudget   = relevant.reduce((s, c) => s + (BUDGET[c.name] || 0), 0);
+  const totalVsAvg    = totalActual - totalTrailing;
+  const totalVsBudget = totalActual - totalBudget;
 
   grid.innerHTML += `
     <div class="budget-item" style="border-top:2px solid #e0e0e0;margin-top:8px;padding-top:10px">
       <div class="budget-label">
         <span class="budget-name" style="font-weight:700">Total</span>
-        <span class="budget-amounts">
-          <span style="font-weight:700">${fmtCurrency(totalActual / 100)}</span>
-          <span style="color:var(--text-secondary);margin:0 4px">vs</span>
-          <span style="color:var(--text-secondary)">${fmtCurrency(totalTrailing / 100)} avg</span>
-          ${totalTrailing > 0 ? `<span style="color:${totalDiffColor};margin-left:6px;font-size:0.78rem;font-weight:700">${totalDiffStr}</span>` : ''}
+        <span class="budget-amounts" style="display:flex;gap:12px;align-items:center">
+          <span><strong>${fmtCurrency(totalActual / 100)}</strong> actual</span>
+          <span style="color:var(--text-secondary)">${fmtCurrency(totalTrailing / 100)} avg
+            <span style="color:${totalVsAvg > 0 ? 'var(--red)' : 'var(--green)'};font-size:0.75rem;font-weight:700">(${(totalVsAvg > 0 ? '+' : '-') + fmtCurrency(Math.abs(totalVsAvg) / 100)})</span>
+          </span>
+          <span style="color:var(--text-secondary)">${fmtCurrency(totalBudget / 100)} budget
+            <span style="color:${totalVsBudget > 0 ? 'var(--red)' : 'var(--green)'};font-size:0.75rem;font-weight:700">(${(totalVsBudget > 0 ? '+' : '-') + fmtCurrency(Math.abs(totalVsBudget) / 100)})</span>
+          </span>
         </span>
       </div>
     </div>`;
