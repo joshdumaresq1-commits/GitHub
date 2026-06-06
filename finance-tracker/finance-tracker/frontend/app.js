@@ -110,8 +110,13 @@ async function loadDoughnutChart() {
 
 async function loadBudgetBars() {
   try {
-    const cats = await fetchJSON(`/api/categories?month=${currentMonth}`);
-    renderBudgetBars(cats);
+    const [cats, avg] = await Promise.all([
+      fetchJSON(`/api/categories?month=${currentMonth}`),
+      fetchJSON(`/api/categories/trailing-avg?before=${currentMonth}&months=5`),
+    ]);
+    document.getElementById('trailing-month-label').textContent =
+      new Date(currentMonth + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
+    renderBudgetBars(cats, avg);
   } catch (e) {
     console.error('loadBudgetBars:', e);
   }
@@ -226,19 +231,31 @@ function renderDoughnutChart(cats) {
   });
 }
 
-function renderBudgetBars(cats) {
+function renderBudgetBars(cats, avg) {
   const grid = document.getElementById('budget-grid');
-  const withBudget = cats.filter(c => c.budget_monthly && c.budget_monthly > 0);
 
-  if (!withBudget.length) {
-    grid.innerHTML = '<p class="text-muted text-sm">No budget categories configured.</p>';
+  // Only show categories that have spending this month OR a trailing avg
+  const relevant = cats.filter(c => c.spent > 0 || (avg[c.name] || 0) > 0);
+
+  if (!relevant.length) {
+    grid.innerHTML = '<p class="text-muted text-sm">No spending data for this period.</p>';
     return;
   }
 
-  grid.innerHTML = withBudget.map(c => {
-    const pct = Math.min(100, c.percent || 0);
-    const over = (c.percent || 0) > 100;
-    const fillColor = over ? 'var(--red)' : c.color;
+  // Sort by current month spending descending
+  relevant.sort((a, b) => (b.spent || 0) - (a.spent || 0));
+
+  grid.innerHTML = relevant.map(c => {
+    const actual = c.spent || 0;          // cents
+    const trailing = avg[c.name] || 0;    // cents
+    const max = Math.max(actual, trailing, 1);
+    const actualPct = Math.round(actual / max * 100);
+    const trailingPct = Math.round(trailing / max * 100);
+    const diff = actual - trailing;
+    const over = diff > 0;
+    const diffStr = (over ? '+' : '-') + fmtCurrency(Math.abs(diff) / 100);
+    const diffColor = over ? 'var(--red)' : 'var(--green)';
+
     return `
     <div class="budget-item">
       <div class="budget-label">
@@ -247,12 +264,15 @@ function renderBudgetBars(cats) {
           ${c.name}
         </span>
         <span class="budget-amounts">
-          ${fmtCurrency(c.spent_display)} / ${fmtCurrency(c.budget_display)}
-          ${over ? ' <strong style="color:var(--red)">Over!</strong>' : ''}
+          <span style="font-weight:600">${fmtCurrency(actual / 100)}</span>
+          <span style="color:var(--text-secondary);margin:0 4px">vs</span>
+          <span style="color:var(--text-secondary)">${fmtCurrency(trailing / 100)} avg</span>
+          ${trailing > 0 ? `<span style="color:${diffColor};margin-left:6px;font-size:0.78rem">${diffStr}</span>` : ''}
         </span>
       </div>
-      <div class="budget-bar-track">
-        <div class="budget-bar-fill ${over ? 'over' : ''}" style="width:${pct}%;background:${fillColor}"></div>
+      <div class="budget-bar-track" style="position:relative">
+        <div class="budget-bar-fill" style="width:${actualPct}%;background:${c.color};opacity:0.9"></div>
+        ${trailing > 0 ? `<div style="position:absolute;top:0;left:${trailingPct}%;width:2px;height:100%;background:rgba(0,0,0,0.25);border-radius:2px"></div>` : ''}
       </div>
     </div>`;
   }).join('');

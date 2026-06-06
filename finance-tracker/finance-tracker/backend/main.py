@@ -555,6 +555,45 @@ def get_monthly_summary(months: int = Query(5), db: Session = Depends(get_db)):
     return result
 
 
+@app.get("/api/categories/trailing-avg")
+def get_trailing_avg(before: Optional[str] = Query(None), months: int = Query(5), db: Session = Depends(get_db)):
+    """Per-category average spending over the N months before `before` (excluding that month)."""
+    if not before:
+        before = datetime.now().strftime("%Y-%m")
+
+    EXCLUDE = {"Transfers", "Income", "Gifts Received", "Insurance Payouts", "Savings"}
+
+    # Build list of N months strictly before `before`
+    ref = datetime.strptime(before + "-01", "%Y-%m-%d")
+    totals: dict[str, int] = {}
+    month_count = 0
+    for i in range(1, months + 1):
+        d = (ref - timedelta(days=i * 28)).replace(day=1)
+        month = d.strftime("%Y-%m")
+        # ensure it's actually before `before`
+        if month >= before:
+            continue
+        month_count += 1
+        txns = (
+            db.query(Transaction)
+            .filter(
+                Transaction.date.startswith(month),
+                Transaction.is_duplicate == False,
+                Transaction.amount > 0,
+                Transaction.category.notin_(list(EXCLUDE)),
+            )
+            .all()
+        )
+        for t in txns:
+            cat = t.category or "Other"
+            totals[cat] = totals.get(cat, 0) + t.amount
+
+    if month_count == 0:
+        return {}
+
+    return {cat: round(total / month_count) for cat, total in totals.items()}
+
+
 @app.get("/api/categories")
 def get_categories(month: Optional[str] = Query(None), db: Session = Depends(get_db)):
     """List categories with monthly totals vs budget."""
