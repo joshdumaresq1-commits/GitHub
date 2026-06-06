@@ -156,10 +156,10 @@ function renderBarChart(monthlyData) {
     }
   }
 
-  // Pick top 6 categories
+  // Pick top 12 categories
   const topCats = Object.entries(catTotals)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
+    .slice(0, 12)
     .map(e => e[0]);
 
   const labels = monthlyData.map(m => {
