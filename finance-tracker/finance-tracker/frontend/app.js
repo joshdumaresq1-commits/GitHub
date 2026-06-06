@@ -495,6 +495,7 @@ function renderCumulativeTable(months) {
   const PROP_TAX_MONTHLY   = Math.round(4107 * 2 / 12 * 100); // $4,107 advance × 2 ÷ 12
   const INCOME_TAX_MONTHLY = Math.round(9385 / 12 * 100 * 0.5); // YTD total ÷ 12, reduced 50% for future years
   const INITIATION_MONTHLY = Math.round(2000 / 12 * 100);     // $2,000 due Oct ÷ 12
+  const HOUSING_MONTHLY    = 380000;                           // $3,800/mo steady-state
   const AMORT_MONTHLY = PROP_TAX_MONTHLY + INCOME_TAX_MONTHLY + INITIATION_MONTHLY;
 
   let totIncome = 0, totGifts = 0, totInsurance = 0, totTotalIncome = 0;
@@ -507,11 +508,12 @@ function renderCumulativeTable(months) {
     const netClass = net < 0 ? 'neg' : 'pos';
     const netStr = (net < 0 ? '-' : '') + fmtCurrency(Math.abs(net) / 100);
 
-    // Adjusted: strip actual lump tax payments, add flat monthly amortized amounts
+    // Adjusted: replace lumpy actuals with flat monthly amortized amounts
     const cat = m.by_category || {};
     const actualPropTax   = (cat['Property Tax']  || 0);
     const actualIncomeTax = (cat['Income Taxes']  || 0);
-    const adjExp = (m.total_expenses || 0) - actualPropTax - actualIncomeTax + AMORT_MONTHLY;
+    const actualHousing   = (cat['Housing']       || 0);
+    const adjExp = (m.total_expenses || 0) - actualPropTax - actualIncomeTax - actualHousing + AMORT_MONTHLY + HOUSING_MONTHLY;
     const adjNet = (m.total_income || 0) - (m.total_savings || 0) - adjExp;
     const adjNetClass = adjNet < 0 ? 'neg' : 'pos';
     const adjNetStr = (adjNet < 0 ? '-' : '') + fmtCurrency(Math.abs(adjNet) / 100);
