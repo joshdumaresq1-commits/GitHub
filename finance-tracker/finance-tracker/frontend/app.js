@@ -276,6 +276,25 @@ function renderBudgetBars(cats, avg) {
       </div>
     </div>`;
   }).join('');
+
+  const totalActual   = relevant.reduce((s, c) => s + (c.spent || 0), 0);
+  const totalTrailing = relevant.reduce((s, c) => s + (avg[c.name] || 0), 0);
+  const totalDiff     = totalActual - totalTrailing;
+  const totalDiffColor = totalDiff > 0 ? 'var(--red)' : 'var(--green)';
+  const totalDiffStr   = (totalDiff > 0 ? '+' : '-') + fmtCurrency(Math.abs(totalDiff) / 100);
+
+  grid.innerHTML += `
+    <div class="budget-item" style="border-top:2px solid #e0e0e0;margin-top:8px;padding-top:10px">
+      <div class="budget-label">
+        <span class="budget-name" style="font-weight:700">Total</span>
+        <span class="budget-amounts">
+          <span style="font-weight:700">${fmtCurrency(totalActual / 100)}</span>
+          <span style="color:var(--text-secondary);margin:0 4px">vs</span>
+          <span style="color:var(--text-secondary)">${fmtCurrency(totalTrailing / 100)} avg</span>
+          ${totalTrailing > 0 ? `<span style="color:${totalDiffColor};margin-left:6px;font-size:0.78rem;font-weight:700">${totalDiffStr}</span>` : ''}
+        </span>
+      </div>
+    </div>`;
 }
 
 function renderTransactions(txns) {
