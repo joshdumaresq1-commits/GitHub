@@ -234,7 +234,6 @@ function renderDoughnutChart(cats) {
 function renderBudgetBars(cats, avg) {
   const grid = document.getElementById('budget-grid');
 
-  // Monthly budget targets (cents)
   const BUDGET = {
     'Housing':             380000,
     'Property Tax':         68500,
@@ -262,7 +261,6 @@ function renderBudgetBars(cats, avg) {
     'Other':               23400,
   };
 
-  // Show categories with spending this month, a trailing avg, OR a budget
   const relevant = cats.filter(c => c.spent > 0 || (avg[c.name] || 0) > 0 || (BUDGET[c.name] || 0) > 0);
 
   if (!relevant.length) {
@@ -272,67 +270,69 @@ function renderBudgetBars(cats, avg) {
 
   relevant.sort((a, b) => (b.spent || 0) - (a.spent || 0));
 
-  grid.innerHTML = relevant.map(c => {
+  function deltaCell(val, ref) {
+    if (!ref) return '<td class="trailing-td">—</td>';
+    const d = val - ref;
+    const color = d > 0 ? 'var(--red)' : 'var(--green)';
+    const sign  = d > 0 ? '+' : '-';
+    return `<td class="trailing-td" style="color:${color};font-weight:600">${sign}${fmtCurrency(Math.abs(d) / 100)}</td>`;
+  }
+
+  const rows = relevant.map(c => {
     const actual   = c.spent || 0;
     const trailing = avg[c.name]    || 0;
     const budget   = BUDGET[c.name] || 0;
-    const max = Math.max(actual, trailing, budget, 1);
-    const actualPct   = Math.round(actual   / max * 100);
-    const trailingPct = Math.round(trailing / max * 100);
-    const budgetPct   = Math.round(budget   / max * 100);
-    const vsAvg    = actual - trailing;
-    const vsBudget = actual - budget;
-    const avgColor    = vsAvg    > 0 ? 'var(--red)' : 'var(--green)';
-    const budgetColor = vsBudget > 0 ? 'var(--red)' : 'var(--green)';
-    const avgStr    = (vsAvg    > 0 ? '+' : '-') + fmtCurrency(Math.abs(vsAvg)    / 100);
-    const budgetStr = (vsBudget > 0 ? '+' : '-') + fmtCurrency(Math.abs(vsBudget) / 100);
-
-    return `
-    <div class="budget-item">
-      <div class="budget-label">
-        <span class="budget-name">
-          <span class="budget-dot" style="background:${c.color}"></span>
+    return `<tr>
+      <td class="trailing-td" style="text-align:left">
+        <span style="display:inline-flex;align-items:center;gap:6px">
+          <span style="width:8px;height:8px;border-radius:50%;background:${c.color};flex-shrink:0;display:inline-block"></span>
           ${c.name}
         </span>
-        <span class="budget-amounts" style="display:flex;gap:12px;align-items:center">
-          <span><strong>${fmtCurrency(actual / 100)}</strong> actual</span>
-          <span style="color:var(--text-secondary)">${fmtCurrency(trailing / 100)} avg
-            ${trailing > 0 ? `<span style="color:${avgColor};font-size:0.75rem">(${avgStr})</span>` : ''}
-          </span>
-          <span style="color:var(--text-secondary)">${fmtCurrency(budget / 100)} budget
-            ${budget > 0 ? `<span style="color:${budgetColor};font-size:0.75rem">(${budgetStr})</span>` : ''}
-          </span>
-        </span>
-      </div>
-      <div class="budget-bar-track" style="position:relative">
-        <div class="budget-bar-fill" style="width:${actualPct}%;background:${c.color};opacity:0.9"></div>
-        ${trailing > 0 ? `<div style="position:absolute;top:0;left:${trailingPct}%;width:2px;height:100%;background:rgba(0,0,0,0.25)" title="5-mo avg"></div>` : ''}
-        ${budget > 0   ? `<div style="position:absolute;top:0;left:${budgetPct}%;width:2px;height:100%;background:rgba(0,0,0,0.6)" title="Budget"></div>` : ''}
-      </div>
-    </div>`;
+      </td>
+      <td class="trailing-td" style="font-weight:600">${fmtCurrency(actual / 100)}</td>
+      <td class="trailing-td">${trailing ? fmtCurrency(trailing / 100) : '—'}</td>
+      ${deltaCell(actual, trailing)}
+      <td class="trailing-td">${budget ? fmtCurrency(budget / 100) : '—'}</td>
+      ${deltaCell(actual, budget)}
+    </tr>`;
   }).join('');
 
   const totalActual   = relevant.reduce((s, c) => s + (c.spent || 0), 0);
   const totalTrailing = relevant.reduce((s, c) => s + (avg[c.name]    || 0), 0);
   const totalBudget   = relevant.reduce((s, c) => s + (BUDGET[c.name] || 0), 0);
-  const totalVsAvg    = totalActual - totalTrailing;
-  const totalVsBudget = totalActual - totalBudget;
 
-  grid.innerHTML += `
-    <div class="budget-item" style="border-top:2px solid #e0e0e0;margin-top:8px;padding-top:10px">
-      <div class="budget-label">
-        <span class="budget-name" style="font-weight:700">Total</span>
-        <span class="budget-amounts" style="display:flex;gap:12px;align-items:center">
-          <span><strong>${fmtCurrency(totalActual / 100)}</strong> actual</span>
-          <span style="color:var(--text-secondary)">${fmtCurrency(totalTrailing / 100)} avg
-            <span style="color:${totalVsAvg > 0 ? 'var(--red)' : 'var(--green)'};font-size:0.75rem;font-weight:700">(${(totalVsAvg > 0 ? '+' : '-') + fmtCurrency(Math.abs(totalVsAvg) / 100)})</span>
-          </span>
-          <span style="color:var(--text-secondary)">${fmtCurrency(totalBudget / 100)} budget
-            <span style="color:${totalVsBudget > 0 ? 'var(--red)' : 'var(--green)'};font-size:0.75rem;font-weight:700">(${(totalVsBudget > 0 ? '+' : '-') + fmtCurrency(Math.abs(totalVsBudget) / 100)})</span>
-          </span>
-        </span>
-      </div>
-    </div>`;
+  function totalDelta(val, ref) {
+    if (!ref) return '<td class="trailing-td">—</td>';
+    const d = val - ref;
+    const color = d > 0 ? 'var(--red)' : 'var(--green)';
+    const sign  = d > 0 ? '+' : '-';
+    return `<td class="trailing-td" style="color:${color};font-weight:700">${sign}${fmtCurrency(Math.abs(d) / 100)}</td>`;
+  }
+
+  grid.innerHTML = `
+    <table class="trailing-table">
+      <thead>
+        <tr>
+          <th class="trailing-th" style="text-align:left">Category</th>
+          <th class="trailing-th">Actual</th>
+          <th class="trailing-th">5-Mo Avg</th>
+          <th class="trailing-th">vs Avg</th>
+          <th class="trailing-th">Budget</th>
+          <th class="trailing-th">vs Budget</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr style="border-top:2px solid #e0e0e0">
+          <td class="trailing-td" style="text-align:left;font-weight:700">Total</td>
+          <td class="trailing-td" style="font-weight:700">${fmtCurrency(totalActual / 100)}</td>
+          <td class="trailing-td" style="font-weight:700">${fmtCurrency(totalTrailing / 100)}</td>
+          ${totalDelta(totalActual, totalTrailing)}
+          <td class="trailing-td" style="font-weight:700">${fmtCurrency(totalBudget / 100)}</td>
+          ${totalDelta(totalActual, totalBudget)}
+        </tr>
+      </tfoot>
+    </table>`;
 }
 
 function renderTransactions(txns) {
