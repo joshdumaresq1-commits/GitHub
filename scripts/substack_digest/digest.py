@@ -1,39 +1,41 @@
 #!/usr/bin/env python3
 """
-Daily Substack digest: fetches RSS feeds, filters for health/nutrition/
-muscle-building content via Claude, and emails a digest via Resend.
+Daily Substack digest: fetches RSS feeds, scores posts by keyword relevance
+(health / nutrition / muscle building), and emails a digest via Resend.
+No AI API key required.
 """
 
 import os
 import sys
-import json
 import datetime
 import re
 from email.utils import parsedate_to_datetime
 
-import anthropic
 import feedparser
 import resend
 
-INTERESTS = "health, wellness, nutrition, muscle building, fitness, strength training, diet, exercise"
+INTEREST_KEYWORDS = [
+    "health", "wellness", "nutrition", "muscle", "protein", "carb",
+    "fat loss", "weight loss", "diet", "exercise", "workout", "training",
+    "strength", "hypertrophy", "gym", "fitness", "calories", "macros",
+    "supplement", "creatine", "sleep", "recovery", "inflammation",
+    "gut health", "metabol", "insulin", "hormone", "testosterone",
+    "cortisol", "cardio", "running", "lifting", "body composition",
+]
 
 
 def fetch_feed(url: str) -> list[dict]:
-    """Parse an RSS/Atom feed and return normalized post dicts."""
     feed = feedparser.parse(url)
     posts = []
     for entry in feed.entries:
         pub_date = None
-        if hasattr(entry, "published"):
-            try:
-                pub_date = parsedate_to_datetime(entry.published)
-            except Exception:
-                pass
-        if pub_date is None and hasattr(entry, "updated"):
-            try:
-                pub_date = parsedate_to_datetime(entry.updated)
-            except Exception:
-                pass
+        for attr in ("published", "updated"):
+            if hasattr(entry, attr):
+                try:
+                    pub_date = parsedate_to_datetime(getattr(entry, attr))
+                    break
+                except Exception:
+                    pass
 
         summary = ""
         if hasattr(entry, "summary"):
@@ -57,74 +59,51 @@ def fetch_feed(url: str) -> list[dict]:
 
 
 def filter_recent(posts: list[dict], hours: int = 24) -> list[dict]:
-    """Keep only posts published within the last N hours."""
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=hours)
     recent = []
     for p in posts:
         dt = p.get("published_dt")
-        if dt is None:
-            recent.append(p)  # include undated posts rather than silently dropping
-        elif dt >= cutoff:
+        if dt is None or dt >= cutoff:
             recent.append(p)
     return recent
 
 
-def analyze_with_claude(posts: list[dict], today: str) -> list[dict]:
-    """Filter and summarize posts by relevance to the user's interests."""
-    client = anthropic.Anthropic()
+def score_post(post: dict) -> tuple[int, list[str]]:
+    """Return (score 0-10, matched_keywords) based on keyword hits."""
+    text = (post["title"] + " " + post["summary"]).lower()
+    matched = [kw for kw in INTEREST_KEYWORDS if kw in text]
+    # Cap at 10; each unique keyword hit = 1 point
+    score = min(len(matched) * 2, 10) if matched else 0
+    return score, matched
 
-    posts_clean = [{k: v for k, v in p.items() if k != "published_dt"} for p in posts]
 
-    system = (
-        "You are a personal content curator. "
-        "Analyze Substack posts and identify those most relevant to the user's interests. "
-        "Return strict JSON — no prose, no markdown fence."
-    )
-
-    user = f"""Today is {today}.
-
-The user is interested in: {INTERESTS}
-
-POSTS FROM THE LAST 24 HOURS:
-{json.dumps(posts_clean, indent=2, ensure_ascii=False)}
-
-For each post, determine if it is relevant to the user's interests.
-Return ONLY the relevant posts as a JSON array, sorted by relevance (most relevant first):
-[
-  {{
-    "title": "post title",
-    "url": "post url",
-    "publication": "publication name",
-    "author": "author name",
-    "published": "ISO date string or null",
-    "relevance_score": 1-10,
-    "relevance_reason": "1-2 sentence explanation of why this is relevant",
-    "key_topics": ["topic1", "topic2"],
-    "summary": "2-3 sentence summary of the post's main points"
-  }}
-]
-
-Only include posts with relevance_score >= 6. If no posts are relevant, return an empty array [].
-"""
-
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4000,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-
-    raw = response.content[0].text.strip()
-    raw = re.sub(r"^```[a-z]*\n?", "", raw)
-    raw = re.sub(r"\n?```$", "", raw)
-    return json.loads(raw)
+def filter_by_keywords(posts: list[dict], min_score: int = 2) -> list[dict]:
+    results = []
+    for post in posts:
+        score, matched = score_post(post)
+        if score < min_score:
+            continue
+        results.append(
+            {
+                "title": post["title"],
+                "url": post["url"],
+                "publication": post["publication"],
+                "author": post["author"],
+                "published": post["published"],
+                "summary": post["summary"],
+                "relevance_score": score,
+                "key_topics": matched[:6],
+                "relevance_reason": f"Matched keywords: {', '.join(matched[:5])}.",
+            }
+        )
+    results.sort(key=lambda p: p["relevance_score"], reverse=True)
+    return results
 
 
 def build_email(posts: list[dict], today: str) -> tuple[str, str, str]:
-    """Return (subject, plain_text, html) for the digest email."""
     if not posts:
         subject = f"Substack Digest {today} — No new relevant posts"
-        plain = "No new posts matching your interests (health, nutrition, muscle building) were published in the last 24 hours."
+        plain = "No new posts matching your interests (health, nutrition, muscle building) in the last 24 hours."
         html = f"<p>{plain}</p>"
         return subject, plain, html
 
@@ -132,7 +111,7 @@ def build_email(posts: list[dict], today: str) -> tuple[str, str, str]:
 
     lines = [
         f"Your Substack Digest — {today}",
-        f"Interests: {INTERESTS}",
+        "Interests: health, wellness, nutrition, muscle building",
         "=" * 60,
         "",
     ]
@@ -153,11 +132,11 @@ def build_email(posts: list[dict], today: str) -> tuple[str, str, str]:
         "<!DOCTYPE html>",
         "<html><body style='font-family: Georgia, serif; max-width: 680px; margin: 0 auto; padding: 20px; color: #222;'>",
         f"<h1 style='font-size: 1.4em; border-bottom: 2px solid #333; padding-bottom: 8px;'>Substack Digest &mdash; {today}</h1>",
-        f"<p style='color: #666; font-size: 0.9em;'>Curated for: health &middot; wellness &middot; nutrition &middot; muscle building</p>",
+        "<p style='color: #666; font-size: 0.9em;'>Curated for: health &middot; wellness &middot; nutrition &middot; muscle building</p>",
     ]
     for post in posts:
         score = post["relevance_score"]
-        bar_color = "#2ecc71" if score >= 8 else "#f39c12" if score >= 6 else "#e74c3c"
+        bar_color = "#2ecc71" if score >= 8 else "#f39c12" if score >= 4 else "#e74c3c"
         topics_html = " ".join(
             f"<span style='background:#f0f0f0; border-radius:3px; padding:2px 6px; font-size:0.8em; margin-right:4px;'>{t}</span>"
             for t in post.get("key_topics", [])
@@ -178,9 +157,8 @@ def build_email(posts: list[dict], today: str) -> tuple[str, str, str]:
             f"</p></div>"
         )
     html_parts.append("</body></html>")
-    html = "\n".join(html_parts)
 
-    return subject, plain, html
+    return subject, plain, "\n".join(html_parts)
 
 
 def send_email(subject: str, plain: str, html: str, to_email: str, from_email: str) -> None:
@@ -205,22 +183,19 @@ def main() -> int:
     if private_rss:
         feed_urls.append(private_rss)
 
-    publications_env = os.environ.get("SUBSTACK_PUBLICATIONS", "").strip()
-    if publications_env:
-        for pub_url in publications_env.split(","):
-            pub_url = pub_url.strip().rstrip("/")
-            if pub_url:
-                if not pub_url.endswith("/feed"):
-                    pub_url += "/feed"
-                feed_urls.append(pub_url)
+    for pub_url in os.environ.get("SUBSTACK_PUBLICATIONS", "").split(","):
+        pub_url = pub_url.strip().rstrip("/")
+        if pub_url:
+            if not pub_url.endswith("/feed"):
+                pub_url += "/feed"
+            feed_urls.append(pub_url)
 
     if not feed_urls:
-        print("ERROR: No feed URLs configured. Set SUBSTACK_RSS_URL and/or SUBSTACK_PUBLICATIONS.")
+        print("ERROR: Set SUBSTACK_RSS_URL and/or SUBSTACK_PUBLICATIONS.")
         return 1
 
     to_email = os.environ.get("DIGEST_EMAIL_TO", "").strip()
     from_email = os.environ.get("DIGEST_EMAIL_FROM", "digest@resend.dev").strip()
-
     if not to_email:
         print("ERROR: DIGEST_EMAIL_TO not set.")
         return 1
@@ -238,15 +213,10 @@ def main() -> int:
     recent = filter_recent(all_posts, hours=24)
     print(f"\n{len(recent)} posts from the last 24 h (of {len(all_posts)} total)", flush=True)
 
-    if not recent:
-        subject, plain, html = build_email([], today)
-        print("No recent posts — sending empty digest.", flush=True)
-    else:
-        print("Analyzing with Claude...", flush=True)
-        relevant = analyze_with_claude(recent, today)
-        print(f"{len(relevant)} relevant post(s)", flush=True)
-        subject, plain, html = build_email(relevant, today)
+    relevant = filter_by_keywords(recent) if recent else []
+    print(f"{len(relevant)} relevant post(s) after keyword filtering", flush=True)
 
+    subject, plain, html = build_email(relevant, today)
     print(f"Sending digest to {to_email}...", flush=True)
     send_email(subject, plain, html, to_email, from_email)
     print("Done.", flush=True)

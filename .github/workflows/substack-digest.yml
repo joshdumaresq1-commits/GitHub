@@ -21,10 +21,9 @@ jobs:
 
       - name: Run Substack digest
         env:
-          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
-          RESEND_API_KEY:       ${{ secrets.RESEND_API_KEY }}
-          SUBSTACK_RSS_URL:     ${{ secrets.SUBSTACK_RSS_URL }}
+          RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
+          SUBSTACK_RSS_URL:      ${{ secrets.SUBSTACK_RSS_URL }}
           SUBSTACK_PUBLICATIONS: ${{ secrets.SUBSTACK_PUBLICATIONS }}
-          DIGEST_EMAIL_TO:      ${{ secrets.DIGEST_EMAIL_TO }}
-          DIGEST_EMAIL_FROM:    ${{ secrets.DIGEST_EMAIL_FROM }}
+          DIGEST_EMAIL_TO:       ${{ secrets.DIGEST_EMAIL_TO }}
+          DIGEST_EMAIL_FROM:     ${{ secrets.DIGEST_EMAIL_FROM }}
         run: python scripts/substack_digest/digest.py
